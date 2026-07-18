@@ -16,6 +16,7 @@ ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のドット絵�
 - Compact / Diorama / Wide の3サイズ
 - Codexがなくても試せるデモモード
 - ウィンドウ位置とサイズの復元
+- 初回 `npm install` 時にOS別アイコンを自動生成
 
 ## 使い方
 
@@ -39,6 +40,10 @@ npm run tauri dev
 - `SIZE`: 3つの表示サイズを切り替え
 - `×`: 終了
 - 上端をドラッグ: 移動
+
+### 単体で体験を確認する
+
+Codexが動いていない状態でも、`DEMO` を押すとlowからxhighまで火力が上がり、複数Agent化してから雨と植林へ戻る一連の体験を確認できます。
 
 ## 設計
 
