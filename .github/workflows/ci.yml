@@ -33,4 +33,18 @@ jobs:
         run: npm run build
 
       - name: Check Tauri backend
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        id: cargo-check
+        shell: bash
+        run: |
+          set +e
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload Cargo diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-check-log
+          path: cargo-check.log
+          if-no-files-found: ignore
