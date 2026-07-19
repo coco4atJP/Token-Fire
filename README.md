@@ -1,7 +1,7 @@
 # Token-Fire 🔥🌲
 
 **Codex が働くほど森が燃え、止まると雨と植林で回復する。**  
-ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のドット絵デスクトップ・ジオラマです。
+ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のマスコット・デスクトップジオラマです。
 
 > 「環境破壊はたのしいZOY!!」という悪趣味でコミカルな勢いに着想を得た、非公式・非提携のオリジナル作品です。既存作品のキャラクターや素材は使用していません。
 
@@ -17,6 +17,16 @@ ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のドット絵�
 - Codexがなくても試せるデモモード
 - ウィンドウ位置とサイズの復元
 - 初回 `npm install` 時にOS別アイコンを自動生成
+- 透明SVGアトラスからキャラクター・小物・環境を別パーツとして描画
+
+## 登場キャラクター
+
+- **Emberbeak** — Token Forgeを仕切る自称王。稼働中はハンマーを振り回す
+- **Spriglet** — 待機中に植林と水やりを担当する植物精霊
+- **Drizzle Puff** — 雨と冷却を担当する雲の相棒
+- **Cinder Cub** — Token結晶を炉へ運び込む炉のグレムリン
+- **Vapo** — 湖に住み、蒸気と水位に反応する水の生き物
+- **Axle Beaver** — 丸太と台車を運ぶ建設メカニック
 
 ## 使い方
 
@@ -56,6 +66,8 @@ AgentSnapshot
   ↓ application / controller
 World simulation
   ↓ presentation / renderer
+Sprite Atlas
+  ↓ presentation / asset boundary
 Tauri window
 ```
 
@@ -69,10 +81,14 @@ Tauri window
   - 入力Adapter、世界、Rendererのオーケストレーション
 - `src/infrastructure/`
   - Tauri IPCとデモ入力
-- `src/presentation/`
-  - Canvas 2Dによるドット絵描画とUI
+- `src/presentation/pixelRenderer.ts`
+  - 世界状態を画面構成とアニメーションへ変換
+- `src/presentation/spriteAtlas.ts`
+  - アトラス座標、透過素材の読み込み、回転・反転・基準点を管理
+- `public/assets/token-fire/sprites.svg`
+  - キャラクター、小物、建物、樹木、天候エフェクトを分離した透明アトラス
 
-HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。
+HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。見た目を変更する場合も、シミュレーションへ触れずアトラスとRendererだけを交換できます。
 
 ## 検出について
 
