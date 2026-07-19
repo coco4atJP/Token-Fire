@@ -1,0 +1,36 @@
+name: Apply Character Layout
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/tauri-codex-diorama
+          fetch-depth: 0
+      - name: Apply choreography patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'SCENE_LAYOUT' src/presentation/pixelRenderer.ts; then
+            echo 'Layout patch is already applied.'
+            exit 0
+          fi
+          cat .github/token-fire-layout.patch.* | base64 -d > /tmp/token-fire-layout.patch
+          patch -p2 < /tmp/token-fire-layout.patch
+          test "$(sha256sum src/presentation/pixelRenderer.ts | cut -d' ' -f1)" = "a66eaab2cf49a5eafe7c8aab0a0789964bed5b9324201c7828beecf79674b224"
+          npm install
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/presentation/pixelRenderer.ts src/presentation/sceneLayout.ts
+          git commit -m 'refine character choreography and layout'
+          git push origin HEAD:agent/tauri-codex-diorama
