@@ -19,6 +19,12 @@ type AudioWindow = Window & {
   webkitAudioContext?: typeof AudioContext;
 };
 
+type PlaybackGraph = {
+  context: AudioContext;
+  masterGain: GainNode;
+  noiseBuffer: AudioBuffer;
+};
+
 const readEnabledPreference = (): boolean => {
   try {
     const stored = localStorage.getItem(AUDIO_ENABLED_KEY);
@@ -70,18 +76,19 @@ export class TokenFireAudioDirector implements AudioDirector {
   async unlock(): Promise<boolean> {
     if (this.disposed || !this.supported) return false;
     this.ensureGraph();
-    if (!this.context) return false;
+    const context = this.context;
+    if (!context) return false;
 
-    if (this.context.state === "suspended") {
+    if (context.state === "suspended") {
       try {
-        await this.context.resume();
+        await context.resume();
       } catch {
         return false;
       }
     }
 
     this.syncMasterGain();
-    return this.context.state === "running";
+    return (context.state as AudioContextState) === "running";
   }
 
   async toggle(): Promise<boolean> {
@@ -185,9 +192,9 @@ export class TokenFireAudioDirector implements AudioDirector {
     lowOscillator.start();
     machineryOscillator.start();
 
-    this.noiseBuffer = this.createNoiseBuffer(context, 2.4);
+    const noiseBuffer = this.createNoiseBuffer(context, 2.4);
     const rainSource = context.createBufferSource();
-    rainSource.buffer = this.noiseBuffer;
+    rainSource.buffer = noiseBuffer;
     rainSource.loop = true;
     const rainHighpass = context.createBiquadFilter();
     rainHighpass.type = "highpass";
@@ -210,6 +217,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     this.forgeOscillators = [lowOscillator, machineryOscillator];
     this.rainGain = rainGain;
     this.rainSource = rainSource;
+    this.noiseBuffer = noiseBuffer;
   }
 
   private createNoiseBuffer(context: AudioContext, seconds: number): AudioBuffer {
@@ -278,14 +286,21 @@ export class TokenFireAudioDirector implements AudioDirector {
     }
   }
 
-  private canPlay(): this is this & { context: AudioContext; masterGain: GainNode; noiseBuffer: AudioBuffer } {
-    return Boolean(
-      this.enabledValue &&
-      this.context &&
-      this.context.state === "running" &&
-      this.masterGain &&
-      this.noiseBuffer,
-    );
+  private getPlaybackGraph(): PlaybackGraph | null {
+    if (
+      !this.enabledValue ||
+      !this.context ||
+      this.context.state !== "running" ||
+      !this.masterGain ||
+      !this.noiseBuffer
+    ) {
+      return null;
+    }
+    return {
+      context: this.context,
+      masterGain: this.masterGain,
+      noiseBuffer: this.noiseBuffer,
+    };
   }
 
   private playTone(
@@ -294,10 +309,11 @@ export class TokenFireAudioDirector implements AudioDirector {
     volume: number,
     options: { delay?: number; type?: OscillatorType; endFrequency?: number } = {},
   ): void {
-    if (!this.canPlay()) return;
-    const start = this.context.currentTime + (options.delay ?? 0);
-    const oscillator = this.context.createOscillator();
-    const gain = this.context.createGain();
+    const graph = this.getPlaybackGraph();
+    if (!graph) return;
+    const start = graph.context.currentTime + (options.delay ?? 0);
+    const oscillator = graph.context.createOscillator();
+    const gain = graph.context.createGain();
     oscillator.type = options.type ?? "sine";
     oscillator.frequency.setValueAtTime(Math.max(20, frequency), start);
     if (options.endFrequency) {
@@ -307,25 +323,26 @@ export class TokenFireAudioDirector implements AudioDirector {
     gain.gain.exponentialRampToValueAtTime(Math.max(MIN_GAIN, volume), start + 0.008);
     gain.gain.exponentialRampToValueAtTime(MIN_GAIN, start + duration);
     oscillator.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(graph.masterGain);
     oscillator.start(start);
     oscillator.stop(start + duration + 0.03);
   }
 
   private playNoise(duration: number, volume: number, cutoff: number, delay = 0): void {
-    if (!this.canPlay()) return;
-    const start = this.context.currentTime + delay;
-    const source = this.context.createBufferSource();
-    source.buffer = this.noiseBuffer;
-    const filter = this.context.createBiquadFilter();
+    const graph = this.getPlaybackGraph();
+    if (!graph) return;
+    const start = graph.context.currentTime + delay;
+    const source = graph.context.createBufferSource();
+    source.buffer = graph.noiseBuffer;
+    const filter = graph.context.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = cutoff;
-    const gain = this.context.createGain();
+    const gain = graph.context.createGain();
     gain.gain.setValueAtTime(Math.max(MIN_GAIN, volume), start);
     gain.gain.exponentialRampToValueAtTime(MIN_GAIN, start + duration);
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(graph.masterGain);
     source.start(start, Math.random() * 1.4);
     source.stop(start + duration + 0.02);
   }
@@ -365,8 +382,8 @@ export class TokenFireAudioDirector implements AudioDirector {
   }
 
   private playCompactingCue(): void {
-    for (let index = 0; index < 4; index += 1) {
-      const frequency = [440, 554.37, 659.25, 880][index];
+    const frequencies = [440, 554.37, 659.25, 880];
+    for (const [index, frequency] of frequencies.entries()) {
       this.playTone(frequency, 0.13, 0.032, { delay: index * 0.065, type: "triangle" });
     }
   }
