@@ -1,8 +1,8 @@
 name: Source Export
 
 on:
-  push:
-    branches: ["agent/tauri-codex-diorama"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
   export:
