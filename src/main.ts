@@ -38,7 +38,7 @@ let currentSize = 1;
 const sizes = [
   new LogicalSize(380, 240),
   new LogicalSize(560, 350),
-  new LogicalSize(820, 300),
+  new LogicalSize(800, 480),
 ];
 
 const view: ControllerView = {
