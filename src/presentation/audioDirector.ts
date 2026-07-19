@@ -250,7 +250,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     else if (stopped) this.playRecoveryCue();
     else if (startedCompacting) this.playCompactingCue();
 
-    if (toolChanged) this.playToolCue(snapshot.tool);
+    if (toolChanged && snapshot.tool) this.playToolCue(snapshot.tool);
     if (snapshot.active && snapshot.tokenDelta > 0) this.playTokenCue(snapshot.tokenDelta, snapshot.activeSessions);
 
     this.lastSnapshotAt = snapshot.updatedAtMs;
