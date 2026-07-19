@@ -119,7 +119,7 @@ const igniteTree = (world: WorldState): boolean => {
   const candidates = world.trees.filter((tree) => tree.stage === "grown" || tree.stage === "sapling");
   if (candidates.length === 0) return false;
   const weighted = candidates.sort((a, b) => b.x - a.x);
-  const upper = Math.max(1, Math.floor(weighted.length * 0.55));
+  const upper = Math.max(1, Math.floor(weighted.length * 0.62));
   const tree = weighted[Math.floor(random(world) * upper)];
   tree.stage = "burning";
   tree.burn = 0;
@@ -151,7 +151,7 @@ const updateTrees = (world: WorldState, active: boolean, dt: number): void => {
   for (const tree of world.trees) {
     tree.sway += dt * (active ? 2.2 : 0.7);
     if (tree.stage === "burning") {
-      tree.burn += dt * (0.14 + world.heat * 0.2);
+      tree.burn += dt * (0.09 + world.heat * 0.14);
       if (random(world) < dt * 9) {
         spawn(world, "ember", tree.x, tree.y - 15 * tree.size, (random(world) - 0.5) * 10, -12 - random(world) * 10, 0.8, 1 + random(world));
       }
@@ -161,14 +161,14 @@ const updateTrees = (world: WorldState, active: boolean, dt: number): void => {
         world.destructionScore += 12;
       }
     } else if (!active && tree.stage === "charred") {
-      tree.regrow += dt * (0.012 + world.rain * 0.04);
+      tree.regrow += dt * (0.12 + world.rain * 0.14);
       if (tree.regrow >= 1) {
         tree.stage = "sapling";
         tree.regrow = 0;
         world.restorationScore += 7;
       }
     } else if (!active && tree.stage === "sapling") {
-      tree.regrow += dt * (0.035 + world.rain * 0.06);
+      tree.regrow += dt * (0.2 + world.rain * 0.16);
       if (tree.regrow >= 1) {
         tree.stage = "grown";
         tree.regrow = 0;
@@ -198,7 +198,7 @@ const updateActiveWorld = (world: WorldState, snapshot: AgentSnapshot, dt: numbe
   world.tokenProduced += consumed;
   const destructiveEnergy = baselineTokens + consumed;
 
-  if (random(world) < dt * (0.08 + destructiveEnergy / 1700) * intensity) {
+  if (random(world) < dt * (0.15 + destructiveEnergy / 950) * Math.sqrt(intensity)) {
     igniteTree(world);
   }
 
@@ -220,15 +220,15 @@ const updateRecoveryWorld = (world: WorldState, dt: number): void => {
   world.quoteVisible = false;
   world.quoteTimer = 0;
   world.factoryPulse += dt * 0.8;
-  world.heat = Math.max(0.02, world.heat - dt * 0.025);
-  world.pollution = Math.max(0, world.pollution - dt * (0.012 + world.rain * 0.025));
-  world.rain = Math.min(0.82, world.rain + dt * 0.025);
-  world.water = Math.min(1, world.water + dt * 0.0035 * (0.3 + world.rain));
+  world.heat = Math.max(0.02, world.heat - dt * 0.04);
+  world.pollution = Math.max(0, world.pollution - dt * (0.022 + world.rain * 0.035));
+  world.rain = Math.min(0.88, world.rain + dt * 0.06);
+  world.water = Math.min(1, world.water + dt * 0.006 * (0.3 + world.rain));
 
-  if (random(world) < dt * world.rain * 24) {
+  if (random(world) < dt * world.rain * 27) {
     spawn(world, "rain", random(world) * world.width, -5, -8, 72 + random(world) * 38, 2.5, 1);
   }
-  if (world.rain > 0.45 && random(world) < dt * 0.45) {
+  if (world.rain > 0.35 && random(world) < dt * 0.6) {
     world.restorationScore += 0.2;
   }
 };
