@@ -1,5 +1,6 @@
 import { effortMultiplier, type AgentSnapshot } from "../domain/agent";
 import { getWorldMetrics, type Particle, type Tree, type WorldState } from "../domain/world";
+import { SCENE_LAYOUT } from "./sceneLayout";
 import { SpriteAtlas, type SpriteKey } from "./spriteAtlas";
 
 const MAX_DEVICE_PIXEL_RATIO = 2;
@@ -183,26 +184,33 @@ const drawFactory = (
   const intensity = effortMultiplier(snapshot.effort);
   const pulseAmount = snapshot.active ? 0.013 + intensity * 0.005 : 0.009;
   const pulse = 1 + Math.sin(world.factoryPulse) * pulseAmount;
+  const forge = SCENE_LAYOUT.forge;
 
   if (snapshot.active) {
-    const glow = ctx.createRadialGradient(238, 132, 3, 238, 132, 53);
+    const glow = ctx.createRadialGradient(forge.x, 132, 3, forge.x, 132, 53);
     glow.addColorStop(0, `rgba(255,151,42,${0.19 + world.heat * 0.17})`);
     glow.addColorStop(1, "rgba(255,104,31,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(183, 77, 110, 95);
+    ctx.fillRect(forge.x - 55, 77, 110, 95);
   }
 
-  drawGroundShadow(ctx, 238, 161, 41, 7, 0.26);
-  atlas.draw(ctx, snapshot.active ? "forgeActive" : "forgeRecovery", 238, 158, 81 * pulse, 75 * pulse, {
-    anchorY: 1,
-  });
+  drawGroundShadow(ctx, forge.x, forge.y + 3, 41, 7, 0.26);
+  atlas.draw(
+    ctx,
+    snapshot.active ? "forgeActive" : "forgeRecovery",
+    forge.x,
+    forge.y,
+    forge.width * pulse,
+    forge.height * pulse,
+    { anchorY: 1 },
+  );
 
   if (snapshot.active) {
-    atlas.draw(ctx, "smoke", 239, 84, 27, 39, {
+    atlas.draw(ctx, "smoke", forge.x + 1, 84, 27, 39, {
       rotation: Math.sin(world.elapsed * 1.4) * 0.08,
       alpha: 0.5 + world.pollution * 0.34,
     });
-    atlas.draw(ctx, "smoke", 258, 79, 20, 31, {
+    atlas.draw(ctx, "smoke", forge.x + 20, 79, 20, 31, {
       rotation: -Math.sin(world.elapsed * 1.1) * 0.07,
       alpha: 0.38 + world.pollution * 0.3,
     });
@@ -215,16 +223,30 @@ const drawSubagents = (
   snapshot: AgentSnapshot,
   atlas: SpriteAtlas,
 ): void => {
-  const assistants = Math.min(3, Math.max(0, snapshot.activeSessions - 1));
+  const assistants = Math.min(SCENE_LAYOUT.active.subagents.length, Math.max(0, snapshot.activeSessions - 1));
   for (let index = 0; index < assistants; index += 1) {
-    const x = 216 + index * 20;
-    const y = 131 + (index % 2) * 4 + Math.sin(world.elapsed * 5 + index) * 1.1;
-    drawGroundShadow(ctx, x, y + 1, 8, 2, 0.16);
-    atlas.draw(ctx, "cinder", x, y, 24, 27, { flipX: index % 2 === 1, alpha: 0.92 });
-    atlas.draw(ctx, "tokenCrystal", x + (index % 2 === 1 ? -8 : 8), y - 11, 8, 13, {
-      rotation: Math.sin(world.elapsed * 3 + index) * 0.08,
+    const placement = SCENE_LAYOUT.active.subagents[index];
+    const bob = Math.sin(world.elapsed * 5.2 + index * 1.7) * 0.75;
+    const y = placement.y + bob;
+
+    // A small catwalk makes these read as intentional workers, not sprites floating over the forge.
+    drawRoundedRect(ctx, placement.x - 9, placement.y - 2, 18, 3, 1.5, "rgba(83,52,31,.9)");
+    atlas.draw(ctx, "cinder", placement.x, y, placement.width, placement.height, {
+      flipX: placement.flipX,
       alpha: 0.94,
     });
+    atlas.draw(
+      ctx,
+      "tokenCrystal",
+      placement.x + placement.crystalOffsetX,
+      y - 10,
+      7,
+      12,
+      {
+        rotation: Math.sin(world.elapsed * 3 + index) * 0.08,
+        alpha: 0.92,
+      },
+    );
   }
 };
 
@@ -234,54 +256,105 @@ const drawActiveCrew = (
   snapshot: AgentSnapshot,
   atlas: SpriteAtlas,
 ): void => {
+  const layout = SCENE_LAYOUT.active;
   const intensity = effortMultiplier(snapshot.effort);
-  const hammerCycle = world.elapsed * (5.4 + intensity * 1.45);
-  const hammerSwing = -0.72 + ((Math.sin(hammerCycle) + 1) * 0.5) * 1.12;
-  const impact = Math.pow(Math.max(0, Math.sin(hammerCycle)), 7);
-  const emberBob = Math.sin(world.elapsed * 5.8) * 1.05 - impact * 1.2;
+  const isError = snapshot.status === "error";
+  const isHolding = snapshot.status === "thinking" || snapshot.status === "compacting";
+  const isStriking = snapshot.status === "working";
+  const toolBoost = snapshot.tool === "apply_patch" ? 1.18 : snapshot.tool === "shell" ? 1.08 : 1;
+  const hammerSpeed = (4.8 + intensity * 1.35) * toolBoost;
+  const hammerCycle = world.elapsed * hammerSpeed;
+  const hammerSwing = isError
+    ? -0.18 + Math.sin(world.elapsed * 11) * 0.06
+    : isHolding
+      ? -0.88 + Math.sin(world.elapsed * 1.8) * 0.08
+      : -0.88 + ((Math.sin(hammerCycle) + 1) * 0.5) * 1.05;
+  const impact = isStriking ? Math.pow(Math.max(0, Math.sin(hammerCycle)), 7) : 0;
+  const emberBob = Math.sin(world.elapsed * (isHolding ? 2.2 : 5.6)) * (isHolding ? 0.45 : 0.95) - impact * 1.15;
 
-  drawGroundShadow(ctx, 190, 166, 17, 4, 0.24);
-  atlas.draw(ctx, "emberbeak", 190, 164 + emberBob, 52, 55);
-  atlas.draw(ctx, "hammer", 175, 138 + emberBob, 32, 43, {
-    rotation: hammerSwing,
-    anchorX: 0.52,
-    anchorY: 0.82,
+  // Hauling sits behind the forge king so the route can pass nearby without visual collisions.
+  const route = layout.cart.maxX - layout.cart.minX;
+  const activityFactor = isHolding ? 0.38 : isError ? 0.12 : 1;
+  const cartSpeed = ((snapshot.tool === "shell" ? 7.7 : 6.1) + intensity * 1.2) * activityFactor;
+  const phase = (world.elapsed * cartSpeed) % (route * 2);
+  const travellingRight = phase <= route;
+  const travel = travellingRight ? phase : route * 2 - phase;
+  const cartX = layout.cart.minX + travel;
+  const wheelBob = Math.sin(world.elapsed * Math.max(1, cartSpeed) * 1.9) * 0.35 * activityFactor;
+  const axleX = cartX + (travellingRight ? 31 : -13);
+
+  drawGroundShadow(ctx, cartX, layout.cart.y + 1, 18, 3, 0.2);
+  atlas.draw(ctx, "logCart", cartX, layout.cart.y + wheelBob, layout.cart.width, layout.cart.height, {
+    flipX: !travellingRight,
+    rotation: wheelBob * 0.008,
+  });
+  atlas.draw(ctx, "logs", cartX, layout.logs.y + wheelBob, layout.logs.width, layout.logs.height, {
+    flipX: !travellingRight,
+  });
+  drawGroundShadow(ctx, axleX, layout.axle.y + 3, 14, 3, 0.2);
+  atlas.draw(ctx, "axle", axleX, layout.axle.y + wheelBob, layout.axle.width, layout.axle.height, {
+    flipX: travellingRight,
+  });
+
+  drawGroundShadow(ctx, layout.emberbeak.x, layout.emberbeak.y + 2, 17, 4, 0.24);
+  // Draw the hammer first so Emberbeak's wing naturally covers the grip.
+  atlas.draw(
+    ctx,
+    "hammer",
+    layout.hammer.x,
+    layout.hammer.y + emberBob,
+    layout.hammer.width,
+    layout.hammer.height,
+    {
+      rotation: hammerSwing,
+      anchorX: layout.hammer.anchorX,
+      anchorY: layout.hammer.anchorY,
+    },
+  );
+  atlas.draw(
+    ctx,
+    "emberbeak",
+    layout.emberbeak.x,
+    layout.emberbeak.y + emberBob,
+    layout.emberbeak.width,
+    layout.emberbeak.height,
+  );
+
+  const cinderBob = Math.sin(world.elapsed * (6.8 + intensity) + 0.8) * (isHolding ? 0.7 : 1.35);
+  drawGroundShadow(ctx, layout.cinder.x, layout.cinder.y + 2, 13, 3, 0.22);
+  atlas.draw(
+    ctx,
+    "cinder",
+    layout.cinder.x,
+    layout.cinder.y + cinderBob,
+    layout.cinder.width,
+    layout.cinder.height,
+  );
+  atlas.draw(
+    ctx,
+    "tokenCrystal",
+    layout.crystal.x,
+    layout.crystal.y + cinderBob,
+    layout.crystal.width,
+    layout.crystal.height,
+    { rotation: Math.sin(world.elapsed * (isHolding ? 1.4 : 3)) * 0.07 },
+  );
+
+  const vapoBob = Math.sin(world.elapsed * 2.6) * 0.9;
+  drawGroundShadow(ctx, layout.vapo.x, layout.vapo.y + 2, 14, 3, 0.16);
+  atlas.draw(ctx, "vapo", layout.vapo.x, layout.vapo.y + vapoBob, layout.vapo.width, layout.vapo.height, {
+    alpha: 0.9,
+    rotation: Math.sin(world.elapsed * 2) * 0.016,
   });
 
   if (impact > 0.38) {
-    atlas.draw(ctx, "spark", 178, 157, 11 + impact * 6, 11 + impact * 6, {
+    atlas.draw(ctx, "spark", 178, 158, 11 + impact * 6, 11 + impact * 6, {
       anchorX: 0.5,
       anchorY: 0.5,
       rotation: hammerCycle,
       alpha: clamp(impact, 0, 1),
     });
   }
-
-  const cinderBob = Math.sin(world.elapsed * (7.2 + intensity) + 0.8) * 1.5;
-  drawGroundShadow(ctx, 275, 166, 13, 3, 0.22);
-  atlas.draw(ctx, "cinder", 275, 164 + cinderBob, 39, 43);
-  atlas.draw(ctx, "tokenCrystal", 293, 137 + cinderBob, 17, 26, {
-    rotation: Math.sin(world.elapsed * 3) * 0.07,
-  });
-
-  const route = 48;
-  const phase = (world.elapsed * (6.4 + intensity * 1.4)) % (route * 2);
-  const travellingRight = phase <= route;
-  const travel = travellingRight ? phase : route * 2 - phase;
-  const cartX = 96 + travel;
-  const axleX = cartX + (travellingRight ? 32 : -12);
-  drawGroundShadow(ctx, cartX, 169, 18, 3, 0.2);
-  atlas.draw(ctx, "logCart", cartX, 168, 38, 28, { flipX: !travellingRight });
-  atlas.draw(ctx, "logs", cartX, 151, 29, 21, { flipX: !travellingRight });
-  drawGroundShadow(ctx, axleX, 168, 14, 3, 0.2);
-  atlas.draw(ctx, "axle", axleX, 165, 43, 47, { flipX: travellingRight });
-
-  const vapoBob = Math.sin(world.elapsed * 2.6) * 1.1;
-  drawGroundShadow(ctx, 302, 168, 15, 3, 0.16);
-  atlas.draw(ctx, "vapo", 302, 166 + vapoBob, 38, 37, {
-    alpha: 0.9,
-    rotation: Math.sin(world.elapsed * 2) * 0.018,
-  });
 };
 
 const drawWateringDrops = (ctx: CanvasRenderingContext2D, world: WorldState): void => {
@@ -291,8 +364,8 @@ const drawWateringDrops = (ctx: CanvasRenderingContext2D, world: WorldState): vo
   ctx.globalAlpha = 0.48 + Math.sin(world.elapsed * 5) * 0.12;
   for (let index = 0; index < 3; index += 1) {
     const progress = (world.elapsed * 1.8 + index * 0.31) % 1;
-    const x = 224 + progress * 9;
-    const y = 151 + progress * 12;
+    const x = 213 + progress * 8;
+    const y = 151 + progress * 13;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x - 1, y + 3);
@@ -301,45 +374,102 @@ const drawWateringDrops = (ctx: CanvasRenderingContext2D, world: WorldState): vo
   ctx.restore();
 };
 
+const drawSleepBubbles = (ctx: CanvasRenderingContext2D, world: WorldState): void => {
+  ctx.save();
+  ctx.strokeStyle = "rgba(243,245,227,.72)";
+  ctx.lineWidth = 1;
+  for (let index = 0; index < 3; index += 1) {
+    const phase = (world.elapsed * 0.38 + index * 0.28) % 1;
+    const radius = 1.1 + phase * 1.7;
+    ctx.globalAlpha = 0.25 + (1 - phase) * 0.55;
+    ctx.beginPath();
+    ctx.arc(263 + phase * 7, 105 - phase * 13 - index * 2, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
 const drawRecoveryCrew = (ctx: CanvasRenderingContext2D, world: WorldState, atlas: SpriteAtlas): void => {
-  const cloudX = 230 + Math.sin(world.elapsed * 0.65) * 12;
-  const cloudY = 61 + Math.sin(world.elapsed * 1.3) * 1.5;
-  atlas.draw(ctx, "drizzle", cloudX, cloudY, 48, 48, { anchorY: 0.5 });
+  const layout = SCENE_LAYOUT.recovery;
+  const cloudX = layout.drizzle.x + Math.sin(world.elapsed * 0.65) * 11;
+  const cloudY = layout.drizzle.y + Math.sin(world.elapsed * 1.3) * 1.4;
+  atlas.draw(ctx, "drizzle", cloudX, cloudY, layout.drizzle.width, layout.drizzle.height, { anchorY: 0.5 });
   if (world.rain > 0.58) {
-    atlas.draw(ctx, "rainCloud", cloudX - 35, cloudY + 2, 27, 27, { anchorY: 0.5, alpha: 0.58 });
+    atlas.draw(ctx, "rainCloud", cloudX - 34, cloudY + 2, 26, 26, { anchorY: 0.5, alpha: 0.52 });
   }
 
-  atlas.draw(ctx, "shrub", 117, 169, 24, 24, { alpha: 0.78 });
-  atlas.draw(ctx, "shrub", 171, 170, 19, 19, { alpha: 0.68, flipX: true });
+  atlas.draw(ctx, "shrub", 116, 169, 24, 24, { alpha: 0.78 });
+  atlas.draw(ctx, "shrub", 164, 170, 18, 18, { alpha: 0.68, flipX: true });
 
-  const sprigBob = Math.sin(world.elapsed * 3.5) * 1.1;
-  drawGroundShadow(ctx, 191, 168, 14, 3, 0.2);
-  atlas.draw(ctx, "spriglet", 191, 165 + sprigBob, 43, 47);
-  atlas.draw(ctx, "wateringCan", 214, 151 + sprigBob, 30, 25, {
-    rotation: -0.32 + Math.sin(world.elapsed * 2.8) * 0.1,
-    anchorX: 0.58,
-    anchorY: 0.72,
-  });
+  const sprigBob = Math.sin(world.elapsed * 3.5) * 1.05;
+  drawGroundShadow(ctx, layout.spriglet.x, layout.spriglet.y + 3, 14, 3, 0.2);
+  atlas.draw(
+    ctx,
+    "spriglet",
+    layout.spriglet.x,
+    layout.spriglet.y + sprigBob,
+    layout.spriglet.width,
+    layout.spriglet.height,
+  );
+  atlas.draw(
+    ctx,
+    "wateringCan",
+    layout.wateringCan.x,
+    layout.wateringCan.y + sprigBob,
+    layout.wateringCan.width,
+    layout.wateringCan.height,
+    {
+      rotation: -0.31 + Math.sin(world.elapsed * 2.8) * 0.09,
+      anchorX: layout.wateringCan.anchorX,
+      anchorY: layout.wateringCan.anchorY,
+    },
+  );
   drawWateringDrops(ctx, world);
-  atlas.draw(ctx, "shrub", 231, 168, 22, 22, { alpha: 0.92 });
+  atlas.draw(
+    ctx,
+    "shrub",
+    layout.targetShrub.x,
+    layout.targetShrub.y,
+    layout.targetShrub.width,
+    layout.targetShrub.height,
+    { alpha: 0.92 },
+  );
 
-  const idleBob = Math.sin(world.elapsed * 1.8) * 0.65;
-  drawGroundShadow(ctx, 242, 166, 13, 3, 0.17);
-  atlas.draw(ctx, "emberbeak", 242, 163 + idleBob, 38, 41, { alpha: 0.94 });
+  const idleBob = Math.sin(world.elapsed * 1.8) * 0.55;
+  drawGroundShadow(ctx, layout.emberbeak.x, layout.emberbeak.y + 2, 13, 3, 0.17);
+  atlas.draw(
+    ctx,
+    "emberbeak",
+    layout.emberbeak.x,
+    layout.emberbeak.y + idleBob,
+    layout.emberbeak.width,
+    layout.emberbeak.height,
+    { alpha: 0.96 },
+  );
 
-  atlas.draw(ctx, "cinder", 260, 135 - idleBob * 0.4, 26, 29, { alpha: 0.9, flipX: true });
+  // Cinder naps on the forge roof. The bubbles make the elevated placement intentional.
+  atlas.draw(
+    ctx,
+    "cinder",
+    layout.sleepingCinder.x,
+    layout.sleepingCinder.y - idleBob * 0.25,
+    layout.sleepingCinder.width,
+    layout.sleepingCinder.height,
+    { alpha: 0.92, flipX: true },
+  );
+  drawSleepBubbles(ctx, world);
 
-  const vapoBob = Math.sin(world.elapsed * 2.2) * 1.2;
-  drawGroundShadow(ctx, 299, 169, 17, 3, 0.18);
-  atlas.draw(ctx, "vapo", 299, 166 + vapoBob, 40, 38, {
-    rotation: Math.sin(world.elapsed * 2) * 0.025,
+  const vapoBob = Math.sin(world.elapsed * 2.2) * 1.05;
+  drawGroundShadow(ctx, layout.vapo.x, layout.vapo.y + 3, 16, 3, 0.18);
+  atlas.draw(ctx, "vapo", layout.vapo.x, layout.vapo.y + vapoBob, layout.vapo.width, layout.vapo.height, {
+    rotation: Math.sin(world.elapsed * 2) * 0.022,
   });
-  atlas.draw(ctx, "splash", 299, 168, 45, 22, {
-    alpha: 0.4 + Math.sin(world.elapsed * 3.4) * 0.08,
+  atlas.draw(ctx, "splash", layout.vapo.x, layout.vapo.y + 2, 42, 21, {
+    alpha: 0.36 + Math.sin(world.elapsed * 3.4) * 0.07,
   });
 
-  drawGroundShadow(ctx, 151, 168, 13, 3, 0.17);
-  atlas.draw(ctx, "axle", 151, 166, 37, 41, { alpha: 0.92 });
+  drawGroundShadow(ctx, layout.axle.x, layout.axle.y + 2, 13, 3, 0.17);
+  atlas.draw(ctx, "axle", layout.axle.x, layout.axle.y, layout.axle.width, layout.axle.height, { alpha: 0.94 });
 };
 
 const drawStatusEffect = (
@@ -523,11 +653,12 @@ export class PixelRenderer {
       return;
     }
 
+    const showActiveScene = snapshot.active || snapshot.status === "error";
     drawBackdrop(ctx, world, snapshot);
     drawLake(ctx, world, this.atlas);
-    drawTrees(ctx, world, snapshot.active, this.atlas);
-    drawFactory(ctx, world, snapshot, this.atlas);
-    if (snapshot.active) {
+    drawTrees(ctx, world, showActiveScene, this.atlas);
+    drawFactory(ctx, world, showActiveScene ? { ...snapshot, active: true } : snapshot, this.atlas);
+    if (showActiveScene) {
       drawSubagents(ctx, world, snapshot, this.atlas);
       drawActiveCrew(ctx, world, snapshot, this.atlas);
     } else {
