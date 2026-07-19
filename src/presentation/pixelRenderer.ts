@@ -1,206 +1,302 @@
 import type { AgentSnapshot } from "../domain/agent";
 import { getWorldMetrics, type Particle, type Tree, type WorldState } from "../domain/world";
+import { SpriteAtlas, type SpriteKey } from "./spriteAtlas";
 
-const px = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void => {
+const fill = (
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void => {
   ctx.fillStyle = color;
-  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+  ctx.fillRect(x, y, width, height);
 };
 
-const drawSky = (ctx: CanvasRenderingContext2D, world: WorldState, active: boolean): void => {
-  const heat = world.heat;
-  const pollution = world.pollution;
-  ctx.fillStyle = active
-    ? `rgb(${Math.round(48 + heat * 55)}, ${Math.round(40 - pollution * 12)}, ${Math.round(54 - pollution * 18)})`
-    : `rgb(${Math.round(35 - pollution * 8)}, ${Math.round(60 + world.rain * 18)}, ${Math.round(78 + world.rain * 24)})`;
+const drawRoundedRect = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  color: string,
+): void => {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+  ctx.fill();
+};
+
+const drawBackdrop = (ctx: CanvasRenderingContext2D, world: WorldState, active: boolean): void => {
+  const sky = ctx.createLinearGradient(0, 0, 0, world.height);
+  if (active) {
+    sky.addColorStop(0, `rgb(${Math.round(58 + world.heat * 45)}, 43, 48)`);
+    sky.addColorStop(0.55, "#765543");
+    sky.addColorStop(1, "#57442f");
+  } else {
+    sky.addColorStop(0, "#6da7bd");
+    sky.addColorStop(0.55, "#86b99d");
+    sky.addColorStop(1, "#4f7147");
+  }
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, world.width, world.height);
 
-  px(ctx, 18, 18, 55, 8, active ? "#6f5551" : "#8194a4");
-  px(ctx, 27, 12, 32, 8, active ? "#77605a" : "#91a5b3");
-  px(ctx, 83, 27, 44, 6, active ? "#70504a" : "#758b9c");
-  px(ctx, 91, 21, 25, 7, active ? "#785a53" : "#8499a9");
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = active ? "#efb26a" : "#e5f4d3";
+  ctx.beginPath();
+  ctx.arc(270, 35, 27, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
-  const horizon = 56;
-  px(ctx, 0, horizon, world.width, world.height - horizon, active ? "#5b5539" : "#516d45");
-  for (let y = horizon; y < world.height; y += 8) {
-    const stripe = ((y - horizon) / 8) % 2 === 0 ? "rgba(255,255,255,0.018)" : "rgba(0,0,0,0.028)";
-    px(ctx, 0, y, world.width, 8, stripe);
-  }
-};
+  ctx.fillStyle = active ? "#61533b" : "#58744a";
+  ctx.beginPath();
+  ctx.ellipse(158, 165, 155, 49, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = active ? "#756246" : "#6d8d55";
+  ctx.beginPath();
+  ctx.ellipse(157, 158, 147, 39, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-const drawLake = (ctx: CanvasRenderingContext2D, world: WorldState): void => {
-  const waterHeight = 35 * world.water;
-  const y = 157 - waterHeight;
-  px(ctx, 266, 135, 54, 31, "#443b37");
-  px(ctx, 270, y, 50, waterHeight, world.heat > 0.65 ? "#7f7564" : "#3a7180");
-  px(ctx, 274, y + 4, 40, 3, world.heat > 0.65 ? "#a69b7b" : "#70a4aa");
-  px(ctx, 282, y + 12, 28, 2, "rgba(255,255,255,0.22)");
-  for (let x = 269; x < 319; x += 7) {
-    px(ctx, x, 163, 5, 3, "#332f2d");
-  }
-};
-
-const drawTree = (ctx: CanvasRenderingContext2D, tree: Tree, world: WorldState): void => {
-  const s = tree.size;
-  const sway = Math.sin(tree.sway) * (tree.stage === "burning" ? 1.3 : 0.55);
-  const x = tree.x + sway;
-  const y = tree.y;
-  if (tree.stage === "charred") {
-    px(ctx, x - 1 * s, y - 17 * s, 3 * s, 18 * s, "#272221");
-    px(ctx, x - 7 * s, y - 13 * s, 7 * s, 2 * s, "#302625");
-    px(ctx, x + 1 * s, y - 10 * s, 6 * s, 2 * s, "#302625");
-    return;
-  }
-  if (tree.stage === "sapling") {
-    px(ctx, x, y - 8 * s, 2 * s, 9 * s, "#6e4c2c");
-    px(ctx, x - 5 * s, y - 10 * s, 6 * s, 5 * s, "#5b8e49");
-    px(ctx, x + 1 * s, y - 13 * s, 6 * s, 6 * s, "#6da257");
-    return;
-  }
-
-  px(ctx, x - 2 * s, y - 21 * s, 5 * s, 22 * s, tree.stage === "burning" ? "#4a3027" : "#6d482b");
-  const leafDark = tree.stage === "burning" ? "#6d3a23" : "#315c36";
-  const leafMid = tree.stage === "burning" ? "#9b4c21" : "#417546";
-  const leafLight = tree.stage === "burning" ? "#c45d20" : "#589456";
-  px(ctx, x - 10 * s, y - 33 * s, 20 * s, 12 * s, leafDark);
-  px(ctx, x - 7 * s, y - 39 * s, 15 * s, 11 * s, leafMid);
-  px(ctx, x - 12 * s, y - 28 * s, 24 * s, 9 * s, leafMid);
-  px(ctx, x - 5 * s, y - 35 * s, 10 * s, 7 * s, leafLight);
-  if (tree.stage === "burning") {
-    const flame = 4 + Math.sin(world.elapsed * 12 + tree.id) * 2;
-    px(ctx, x - 5 * s, y - 43 * s, 4 * s, flame * s, "#ffb12f");
-    px(ctx, x, y - 47 * s, 5 * s, (flame + 2) * s, "#ff6f22");
-    px(ctx, x + 5 * s, y - 40 * s, 4 * s, flame * 0.8 * s, "#ffd55a");
-  }
-};
-
-const drawFactory = (ctx: CanvasRenderingContext2D, world: WorldState, snapshot: AgentSnapshot): void => {
-  const active = snapshot.active;
-  const pulse = Math.sin(world.factoryPulse) * 0.5 + 0.5;
-  px(ctx, 215, 112, 45, 48, "#28292e");
-  px(ctx, 221, 104, 34, 10, "#3a3b42");
-  px(ctx, 230, 78, 12, 34, "#2b2c31");
-  px(ctx, 228, 74, 16, 6, "#41434a");
-  px(ctx, 249, 93, 8, 21, "#34363c");
-  px(ctx, 247, 89, 12, 5, "#464952");
-  px(ctx, 220, 121, 15, 19, "#17181d");
-  px(ctx, 238, 121, 15, 19, "#17181d");
-  px(ctx, 223, 125, 9, 11, active ? (pulse > 0.5 ? "#ff8128" : "#d94b21") : "#34343a");
-  px(ctx, 241, 125, 9, 11, active ? "#ffb13b" : "#34343a");
-  px(ctx, 217, 145, 41, 5, "#4f4140");
-  px(ctx, 212, 154, 54, 7, "#332f31");
-  if (active) {
-    px(ctx, 225, 137, 5, 8 + pulse * 5, "#ffcc4a");
-    px(ctx, 230, 133, 6, 12 + pulse * 6, "#ff6d21");
-    px(ctx, 236, 137, 5, 8 + pulse * 4, "#ffb12e");
-  }
-
-  px(ctx, 257, 140, 34, 5, "#2b2d32");
-  px(ctx, 263, 136, 6, 4, active ? "#d86d28" : "#41434a");
-  px(ctx, 274, 136, 6, 4, active ? "#d86d28" : "#41434a");
-  px(ctx, 285, 136, 6, 4, active ? "#d86d28" : "#41434a");
-};
-
-const drawKing = (ctx: CanvasRenderingContext2D, world: WorldState, snapshot: AgentSnapshot): void => {
-  const active = snapshot.active;
-  const bob = Math.sin(world.elapsed * (active ? 7 : 2)) * (active ? 1.5 : 0.5);
-  const x = 197;
-  const y = 151 + bob;
-  px(ctx, x - 8, y - 21, 17, 20, "#5d4b82");
-  px(ctx, x - 6, y - 24, 13, 8, "#7560a0");
-  px(ctx, x - 4, y - 20, 3, 3, "#f5e8c8");
-  px(ctx, x + 3, y - 20, 3, 3, "#f5e8c8");
-  px(ctx, x - 3, y - 19, 1, 1, "#19181d");
-  px(ctx, x + 4, y - 19, 1, 1, "#19181d");
-  px(ctx, x - 5, y - 29, 3, 6, "#e4b532");
-  px(ctx, x, y - 31, 3, 8, "#f2c43a");
-  px(ctx, x + 5, y - 29, 3, 6, "#e4b532");
-  px(ctx, x - 7, y - 25, 16, 3, "#c58f26");
-  px(ctx, x - 7, y - 2, 5, 4, "#2a2636");
-  px(ctx, x + 4, y - 2, 5, 4, "#2a2636");
-  if (active) {
-    const swing = Math.sin(world.elapsed * 8);
-    px(ctx, x + 8 + swing * 2, y - 24, 3, 21, "#6e4b2d");
-    px(ctx, x + 4 + swing * 2, y - 28, 12, 7, "#d3a638");
-  } else {
-    px(ctx, x + 8, y - 17, 2, 14, "#76512e");
-    px(ctx, x + 4, y - 22, 10, 7, "#4d8b56");
-    px(ctx, x + 6, y - 24, 6, 4, "#6aaa65");
-  }
-};
-
-const drawParticle = (ctx: CanvasRenderingContext2D, particle: Particle): void => {
-  const alpha = Math.max(0, particle.life / particle.maxLife);
-  ctx.globalAlpha = alpha;
-  switch (particle.kind) {
-    case "smoke":
-      px(ctx, particle.x, particle.y, particle.size, particle.size, alpha > 0.5 ? "#47454b" : "#656168");
-      break;
-    case "steam":
-      px(ctx, particle.x, particle.y, particle.size, particle.size, "#c8d0ca");
-      break;
-    case "ember":
-      px(ctx, particle.x, particle.y, particle.size, particle.size, "#ff8a29");
-      break;
-    case "rain":
-      px(ctx, particle.x, particle.y, 1, 5, "#8ec7d7");
-      break;
-    case "token":
-      px(ctx, particle.x - 2, particle.y, 5, 5, "#ffc83d");
-      px(ctx, particle.x - 1, particle.y + 1, 3, 3, "#fff0a1");
-      break;
-    case "spark":
-      px(ctx, particle.x, particle.y, particle.size, particle.size, "#ffe374");
-      break;
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = active ? "#e7b45b" : "#d7f1b0";
+  ctx.lineWidth = 1;
+  for (let x = 15; x < 305; x += 18) {
+    ctx.beginPath();
+    ctx.moveTo(x, 164 + Math.sin(x) * 2);
+    ctx.lineTo(x + 5, 153 + Math.cos(x) * 2);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 };
 
+const drawLake = (ctx: CanvasRenderingContext2D, world: WorldState, atlas: SpriteAtlas): void => {
+  const waterY = 145 + (1 - world.water) * 11;
+  const waterHeight = 27 * world.water;
+  ctx.fillStyle = world.heat > 0.67 ? "rgba(122,129,120,.78)" : "rgba(64,155,183,.88)";
+  ctx.beginPath();
+  ctx.ellipse(278, waterY, 37, Math.max(8, waterHeight), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = world.heat > 0.67 ? "#c7b68d" : "#9de9ee";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  atlas.draw(ctx, "waterfall", 305, 157, 38, 31, { anchorX: 0.5, anchorY: 1, alpha: 0.9 });
+};
+
+const treeSprite = (tree: Tree, active: boolean): SpriteKey => {
+  switch (tree.stage) {
+    case "charred":
+      return "treeScorched";
+    case "burning":
+      return "treeHealthy";
+    case "sapling":
+      return active ? "shrub" : "treeRecovery";
+    case "grown":
+      return active ? "treeHealthy" : "treeRecovery";
+  }
+};
+
+const drawTrees = (ctx: CanvasRenderingContext2D, world: WorldState, active: boolean, atlas: SpriteAtlas): void => {
+  const visible = world.trees.filter((tree) => tree.id % 3 === 0 || tree.stage === "burning");
+  visible.sort((a, b) => a.y - b.y);
+  for (const tree of visible) {
+    const width = 23 * tree.size;
+    const height = 32 * tree.size;
+    const sway = Math.sin(tree.sway) * (tree.stage === "burning" ? 0.045 : 0.018);
+    atlas.draw(ctx, treeSprite(tree, active), tree.x, tree.y + 10, width, height, {
+      rotation: sway,
+      alpha: tree.stage === "charred" ? 0.9 : 1,
+    });
+    if (tree.stage === "burning") {
+      const pulse = 1 + Math.sin(world.elapsed * 11 + tree.id) * 0.12;
+      atlas.draw(ctx, "flame", tree.x, tree.y - 9, 14 * pulse, 20 * pulse, { anchorY: 1 });
+    }
+  }
+};
+
+const drawFactory = (
+  ctx: CanvasRenderingContext2D,
+  world: WorldState,
+  snapshot: AgentSnapshot,
+  atlas: SpriteAtlas,
+): void => {
+  const pulse = 1 + Math.sin(world.factoryPulse) * 0.018;
+  atlas.draw(ctx, snapshot.active ? "forgeActive" : "forgeRecovery", 238, 158, 78 * pulse, 72 * pulse, {
+    anchorY: 1,
+  });
+
+  if (snapshot.active) {
+    atlas.draw(ctx, "smoke", 239, 84, 27, 39, {
+      rotation: Math.sin(world.elapsed * 1.4) * 0.08,
+      alpha: 0.55 + world.pollution * 0.35,
+    });
+    atlas.draw(ctx, "smoke", 258, 79, 20, 31, {
+      rotation: -Math.sin(world.elapsed * 1.1) * 0.07,
+      alpha: 0.42 + world.pollution * 0.32,
+    });
+  }
+};
+
+const drawActiveCrew = (ctx: CanvasRenderingContext2D, world: WorldState, atlas: SpriteAtlas): void => {
+  const hammerSwing = -0.48 + Math.sin(world.elapsed * 7.5) * 0.42;
+  const emberBob = Math.sin(world.elapsed * 5.8) * 1.2;
+  atlas.draw(ctx, "emberbeak", 190, 164 + emberBob, 48, 51);
+  atlas.draw(ctx, "hammer", 170, 134 + emberBob, 31, 42, {
+    rotation: hammerSwing,
+    anchorX: 0.52,
+    anchorY: 0.82,
+  });
+
+  const cinderBob = Math.sin(world.elapsed * 8 + 0.8) * 1.8;
+  atlas.draw(ctx, "cinder", 270, 164 + cinderBob, 37, 41);
+  atlas.draw(ctx, "tokenCrystal", 287, 137 + cinderBob, 16, 25, {
+    rotation: Math.sin(world.elapsed * 3) * 0.07,
+  });
+
+  const travel = (world.elapsed * 10) % 24;
+  atlas.draw(ctx, "logCart", 128 + travel, 168, 35, 26);
+  atlas.draw(ctx, "logs", 128 + travel, 151, 27, 20);
+  atlas.draw(ctx, "axle", 158 + travel, 165, 39, 43, { flipX: true });
+
+  atlas.draw(ctx, "vapo", 292, 166, 36, 35, { alpha: 0.84 });
+};
+
+const drawRecoveryCrew = (ctx: CanvasRenderingContext2D, world: WorldState, atlas: SpriteAtlas): void => {
+  const cloudX = 228 + Math.sin(world.elapsed * 0.65) * 12;
+  atlas.draw(ctx, "rainCloud", cloudX, 61, 45, 45, { anchorY: 0.5 });
+
+  const sprigBob = Math.sin(world.elapsed * 3.5) * 1.2;
+  atlas.draw(ctx, "spriglet", 198, 165 + sprigBob, 39, 43);
+  atlas.draw(ctx, "wateringCan", 218, 151 + sprigBob, 29, 24, {
+    rotation: -0.28 + Math.sin(world.elapsed * 2.8) * 0.12,
+    anchorX: 0.58,
+    anchorY: 0.72,
+  });
+
+  atlas.draw(ctx, "vapo", 282, 166, 39, 37, {
+    alpha: 0.98,
+    rotation: Math.sin(world.elapsed * 2) * 0.025,
+  });
+  atlas.draw(ctx, "splash", 282, 167, 44, 22, { alpha: 0.55 });
+
+  atlas.draw(ctx, "emberbeak", 246, 163, 35, 38, { alpha: 0.74 });
+  atlas.draw(ctx, "cinder", 264, 163, 27, 31, { alpha: 0.62 });
+  atlas.draw(ctx, "axle", 155, 166, 33, 37, { alpha: 0.78 });
+};
+
+const drawParticle = (ctx: CanvasRenderingContext2D, particle: Particle, atlas: SpriteAtlas): void => {
+  const alpha = Math.max(0, particle.life / particle.maxLife);
+  switch (particle.kind) {
+    case "smoke":
+      atlas.draw(ctx, "smoke", particle.x, particle.y, particle.size * 5.4, particle.size * 7.1, {
+        alpha: alpha * 0.6,
+        rotation: particle.x * 0.01,
+      });
+      return;
+    case "steam":
+      ctx.globalAlpha = alpha * 0.65;
+      ctx.fillStyle = "#e9f5f0";
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      return;
+    case "ember":
+    case "spark":
+      atlas.draw(ctx, "spark", particle.x, particle.y, particle.size * 5.5, particle.size * 5.5, {
+        alpha,
+        anchorX: 0.5,
+        anchorY: 0.5,
+      });
+      return;
+    case "rain":
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.strokeStyle = "#9fe4f1";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(particle.x, particle.y);
+      ctx.lineTo(particle.x - 2, particle.y + 7);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    case "token":
+      atlas.draw(ctx, "token", particle.x, particle.y, particle.size * 4.4, particle.size * 4.4, {
+        alpha,
+        anchorX: 0.5,
+        anchorY: 0.5,
+        rotation: particle.life * 4,
+      });
+      return;
+  }
+};
+
 const drawHud = (ctx: CanvasRenderingContext2D, world: WorldState, snapshot: AgentSnapshot): void => {
   const metrics = getWorldMetrics(world);
-  ctx.font = "8px monospace";
+  ctx.font = "600 7px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
   ctx.textBaseline = "top";
-  px(ctx, 7, 7, 138, 27, "rgba(13,14,18,0.68)");
-  ctx.fillStyle = snapshot.active ? "#ffb33b" : "#9bd2a2";
-  ctx.fillText(snapshot.active ? "CODEX: DESTROYING" : "CODEX: RECOVERING", 12, 11);
-  ctx.fillStyle = "#d8d7d0";
-  const detail = snapshot.active
-    ? `${snapshot.effort.toUpperCase()}  x${Math.max(1, snapshot.activeSessions)}  +${snapshot.tokenDelta} tok`
-    : `RAIN ${Math.round(world.rain * 100)}%  WATER ${metrics.waterPercent}%`;
-  ctx.fillText(detail, 12, 22);
 
-  px(ctx, 7, 164, 150, 20, "rgba(13,14,18,0.64)");
-  ctx.fillStyle = "#d6d1c3";
-  ctx.fillText(`TREE ${metrics.livingTrees}  FIRE ${metrics.burningTrees}  ASH ${metrics.charredTrees}`, 12, 168);
-  ctx.fillStyle = "#aaa69c";
-  ctx.fillText(`DESTROY ${metrics.destructionScore} / RESTORE ${metrics.restorationScore}`, 12, 177);
+  drawRoundedRect(ctx, 7, 7, 147, 28, 6, "rgba(27,22,20,.72)");
+  ctx.fillStyle = snapshot.active ? "#ffc24a" : "#bde786";
+  ctx.fillText(snapshot.active ? "TOKEN FORGE · ACTIVE" : "RECOVERY GROVE · RAIN", 13, 11);
+  ctx.fillStyle = "#f3eadb";
+  const detail = snapshot.active
+    ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} AGENT · +${snapshot.tokenDelta} TOK`
+    : `RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}%`;
+  ctx.fillText(detail, 13, 22);
+
+  drawRoundedRect(ctx, 7, 169, 166, 17, 5, "rgba(27,22,20,.65)");
+  ctx.fillStyle = "#eee4d3";
+  ctx.fillText(`TREE ${metrics.livingTrees}  FIRE ${metrics.burningTrees}  ASH ${metrics.charredTrees}`, 12, 174);
 
   if (world.quoteVisible) {
-    px(ctx, 166, 17, 145, 21, "rgba(19,15,18,0.82)");
-    ctx.fillStyle = "#ffd052";
-    ctx.fillText("環境破壊はたのしいZOY!!", 174, 23);
+    drawRoundedRect(ctx, 163, 13, 149, 22, 7, "rgba(39,24,18,.86)");
+    ctx.fillStyle = "#ffd65e";
+    ctx.font = "700 8px sans-serif";
+    ctx.fillText("環境破壊はたのしいZOY!!", 172, 20);
   }
+};
+
+const drawLoading = (ctx: CanvasRenderingContext2D, world: WorldState): void => {
+  drawBackdrop(ctx, world, false);
+  drawRoundedRect(ctx, 79, 75, 162, 42, 12, "rgba(28,23,22,.72)");
+  ctx.fillStyle = "#f4d27a";
+  ctx.font = "700 10px sans-serif";
+  ctx.fillText("TOKEN-FIRE ASSETS LOADING…", 94, 91);
 };
 
 export class PixelRenderer {
   private readonly context: CanvasRenderingContext2D;
+  private readonly atlas: SpriteAtlas;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const context = canvas.getContext("2d", { alpha: true });
     if (!context) throw new Error("Canvas 2D is unavailable");
     this.context = context;
-    context.imageSmoothingEnabled = false;
+    this.context.imageSmoothingEnabled = true;
+    this.context.imageSmoothingQuality = "high";
+    this.atlas = new SpriteAtlas();
   }
 
   render(world: WorldState, snapshot: AgentSnapshot): void {
     const ctx = this.context;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    drawSky(ctx, world, snapshot.active);
-    drawLake(ctx, world);
-    const orderedTrees = [...world.trees].sort((a, b) => a.y - b.y);
-    for (const tree of orderedTrees) drawTree(ctx, tree, world);
-    drawFactory(ctx, world, snapshot);
-    drawKing(ctx, world, snapshot);
-    for (const particle of world.particles) drawParticle(ctx, particle);
+    const scaleX = this.canvas.width / world.width;
+    const scaleY = this.canvas.height / world.height;
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+    ctx.clearRect(0, 0, world.width, world.height);
+
+    if (!this.atlas.ready) {
+      drawLoading(ctx, world);
+      return;
+    }
+
+    drawBackdrop(ctx, world, snapshot.active);
+    drawLake(ctx, world, this.atlas);
+    drawTrees(ctx, world, snapshot.active, this.atlas);
+    drawFactory(ctx, world, snapshot, this.atlas);
+    if (snapshot.active) drawActiveCrew(ctx, world, this.atlas);
+    else drawRecoveryCrew(ctx, world, this.atlas);
+    for (const particle of world.particles) drawParticle(ctx, particle, this.atlas);
     drawHud(ctx, world, snapshot);
   }
 }
