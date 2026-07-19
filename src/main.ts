@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppController, type ControllerView, type SourceMode } from "./application/appController";
 import type { AgentSnapshot } from "./domain/agent";
 import { CodexJsonlSource } from "./infrastructure/codexClient";
+import { TokenFireAudioDirector } from "./presentation/audioDirector";
 import { PixelRenderer } from "./presentation/pixelRenderer";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -16,6 +17,7 @@ app.innerHTML = `
     <div class="toolbar">
       <button id="source-button" type="button" title="Codex / Demo 切替">DEMO</button>
       <button id="size-button" type="button" title="表示サイズ切替">SIZE</button>
+      <button id="sound-button" type="button" title="サウンド切替" aria-label="サウンド切替">🔊</button>
       <button id="close-button" type="button" title="閉じる">×</button>
     </div>
     <canvas id="world" width="640" height="384" aria-label="Token-Fire mascot diorama"></canvas>
@@ -26,10 +28,11 @@ app.innerHTML = `
 const canvas = document.querySelector<HTMLCanvasElement>("#world");
 const sourceButton = document.querySelector<HTMLButtonElement>("#source-button");
 const sizeButton = document.querySelector<HTMLButtonElement>("#size-button");
+const soundButton = document.querySelector<HTMLButtonElement>("#sound-button");
 const closeButton = document.querySelector<HTMLButtonElement>("#close-button");
 const connection = document.querySelector<HTMLSpanElement>("#connection");
 const connectionDot = document.querySelector<HTMLSpanElement>(".connection-dot");
-if (!canvas || !sourceButton || !sizeButton || !closeButton || !connection || !connectionDot) {
+if (!canvas || !sourceButton || !sizeButton || !soundButton || !closeButton || !connection || !connectionDot) {
   throw new Error("Token-Fire UI failed to initialize");
 }
 
@@ -58,11 +61,31 @@ const view: ControllerView = {
   },
 };
 
-const controller = new AppController(new CodexJsonlSource(), new PixelRenderer(canvas), view);
+const audio = new TokenFireAudioDirector();
+const renderSoundButton = (): void => {
+  soundButton.disabled = !audio.supported;
+  soundButton.textContent = audio.supported ? (audio.enabled ? "🔊" : "🔇") : "—";
+  soundButton.setAttribute("aria-pressed", String(audio.enabled));
+  soundButton.title = !audio.supported
+    ? "この環境ではサウンドを利用できません"
+    : audio.enabled
+      ? "サウンドをミュート（M）"
+      : "サウンドを有効化（M）";
+};
+renderSoundButton();
+
+const controller = new AppController(new CodexJsonlSource(), new PixelRenderer(canvas), audio, view);
 controller.start();
 if (!("__TAURI_INTERNALS__" in window)) {
   controller.setMode("demo");
 }
+
+// Web Audio requires a user gesture in many WebViews and browsers.
+const unlockAudio = (): void => {
+  void audio.unlock();
+};
+window.addEventListener("pointerdown", unlockAudio, { passive: true });
+window.addEventListener("keydown", unlockAudio);
 
 sourceButton.addEventListener("click", () => {
   controller.setMode(currentSource === "codex" ? "demo" : "codex");
@@ -73,6 +96,11 @@ sizeButton.addEventListener("click", async () => {
   await getCurrentWindow().setSize(sizes[currentSize]);
 });
 
+soundButton.addEventListener("click", async () => {
+  await audio.toggle();
+  renderSoundButton();
+});
+
 closeButton.addEventListener("click", async () => {
   controller.stop();
   await getCurrentWindow().close();
@@ -81,5 +109,8 @@ closeButton.addEventListener("click", async () => {
 window.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "d") {
     controller.setMode(currentSource === "codex" ? "demo" : "codex");
+  }
+  if (event.key.toLowerCase() === "m" && !event.repeat) {
+    void audio.toggle().then(renderSoundButton);
   }
 });
