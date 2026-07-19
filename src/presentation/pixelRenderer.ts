@@ -2,18 +2,6 @@ import type { AgentSnapshot } from "../domain/agent";
 import { getWorldMetrics, type Particle, type Tree, type WorldState } from "../domain/world";
 import { SpriteAtlas, type SpriteKey } from "./spriteAtlas";
 
-const fill = (
-  ctx: CanvasRenderingContext2D,
-  color: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): void => {
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, width, height);
-};
-
 const drawRoundedRect = (
   ctx: CanvasRenderingContext2D,
   x: number,
