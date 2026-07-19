@@ -1,7 +1,7 @@
 # Token-Fire 🔥🌲
 
 **Codex が働くほど森が燃え、止まると雨と植林で回復する。**  
-ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のマスコット・デスクトップジオラマです。
+ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のドット絵デスクトップ・ジオラマです。
 
 > 「環境破壊はたのしいZOY!!」という悪趣味でコミカルな勢いに着想を得た、非公式・非提携のオリジナル作品です。既存作品のキャラクターや素材は使用していません。
 
@@ -12,15 +12,12 @@ ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のマスコッ�
 - Token増加、Reasoning Effort、並列セッション数で火力が変化
 - 稼働中は伐採・延焼・煙・Token精製・湖の蒸発
 - 待機中は雨・冷却・植林・湖の回復
-- Emberbeak、Spriglet、Drizzle Puff、Cinder Cub、Vapo、Axle Beaverの6体が状態に応じて行動
-- キャラクター、工場、樹木、小物、天候エフェクトを透明SVGアトラスから描画
-- 高エフォート時はハンマー・炉・搬送が高速化し、並列セッション時は小型作業員が増加
 - 透明、枠なし、常時最前面のTauriウィンドウ
-- Compact / Diorama / Large の3サイズ
-- 縦横比を維持したレスポンシブCanvasとRetina解像度対応
+- Compact / Diorama / Wide の3サイズ
 - Codexがなくても試せるデモモード
 - ウィンドウ位置とサイズの復元
 - 初回 `npm install` 時にOS別アイコンを自動生成
+- 6体のオリジナルマスコットと透明SVGアトラス
 
 ## 使い方
 
@@ -49,9 +46,18 @@ npm run tauri dev
 
 Codexが動いていない状態でも、`DEMO` を押すとlowからxhighまで火力が上がり、複数Agent化してから雨と植林へ戻る一連の体験を確認できます。
 
+## キャラクター
+
+- **Emberbeak**: 炉を率いる自称王。思考中はハンマーを構え、作業中に叩く
+- **Cinder Cub**: Token結晶を扱う炉の作業員。並列Agent時は仲間が増える
+- **Axle Beaver**: 丸太台車を往復させる運搬係
+- **Vapo**: 湖の水位と蒸気を見守る水の精
+- **Spriglet**: 待機中に植林と水やりを担当
+- **Drizzle Puff**: 回復フェーズで雨を運ぶ雲の精
+
 ## 設計
 
-このプロジェクトでは、入力元・世界状態・アセット・描画を直接結合しません。
+このプロジェクトでは、入力元と表現を直接結合しません。
 
 ```text
 Codex JSONL
@@ -60,8 +66,6 @@ AgentSnapshot
   ↓ application / controller
 World simulation
   ↓ presentation / renderer
-SpriteAtlas + transparent SVG
-  ↓
 Tauri window
 ```
 
@@ -75,14 +79,14 @@ Tauri window
   - 入力Adapter、世界、Rendererのオーケストレーション
 - `src/infrastructure/`
   - Tauri IPCとデモ入力
-- `src/presentation/spriteAtlas.ts`
-  - 透明アトラスの座標、回転、反転、基準点、読込状態
+- `src/presentation/sceneLayout.ts`
+  - キャラクター、設備、小物のワールド座標と表示寸法
 - `src/presentation/pixelRenderer.ts`
-  - Canvas配置、レイヤー順、キャラクター演出、解像度適応
-- `public/assets/token-fire/sprites.svg`
-  - キャラクター、工場、自然、小物、エフェクトの透明統合アトラス
+  - 状態に応じた動作、描画順、エフェクト
+- `src/presentation/spriteAtlas.ts`
+  - SVGアトラスの切り出し、アンカー、回転、反転
 
-HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。素材を差し替える場合も、世界シミュレーションを変更せず `SpriteAtlas` 側で管理できます。
+HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。
 
 ## 検出について
 
