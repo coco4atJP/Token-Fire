@@ -12,21 +12,15 @@ ChatGPT / Codex Desktop の横に置いて眺める、Tauri 製のマスコッ�
 - Token増加、Reasoning Effort、並列セッション数で火力が変化
 - 稼働中は伐採・延焼・煙・Token精製・湖の蒸発
 - 待機中は雨・冷却・植林・湖の回復
+- Emberbeak、Spriglet、Drizzle Puff、Cinder Cub、Vapo、Axle Beaverの6体が状態に応じて行動
+- キャラクター、工場、樹木、小物、天候エフェクトを透明SVGアトラスから描画
+- 高エフォート時はハンマー・炉・搬送が高速化し、並列セッション時は小型作業員が増加
 - 透明、枠なし、常時最前面のTauriウィンドウ
-- Compact / Diorama / Wide の3サイズ
+- Compact / Diorama / Large の3サイズ
+- 縦横比を維持したレスポンシブCanvasとRetina解像度対応
 - Codexがなくても試せるデモモード
 - ウィンドウ位置とサイズの復元
 - 初回 `npm install` 時にOS別アイコンを自動生成
-- 透明SVGアトラスからキャラクター・小物・環境を別パーツとして描画
-
-## 登場キャラクター
-
-- **Emberbeak** — Token Forgeを仕切る自称王。稼働中はハンマーを振り回す
-- **Spriglet** — 待機中に植林と水やりを担当する植物精霊
-- **Drizzle Puff** — 雨と冷却を担当する雲の相棒
-- **Cinder Cub** — Token結晶を炉へ運び込む炉のグレムリン
-- **Vapo** — 湖に住み、蒸気と水位に反応する水の生き物
-- **Axle Beaver** — 丸太と台車を運ぶ建設メカニック
 
 ## 使い方
 
@@ -57,7 +51,7 @@ Codexが動いていない状態でも、`DEMO` を押すとlowからxhighまで
 
 ## 設計
 
-このプロジェクトでは、入力元と表現を直接結合しません。
+このプロジェクトでは、入力元・世界状態・アセット・描画を直接結合しません。
 
 ```text
 Codex JSONL
@@ -66,8 +60,8 @@ AgentSnapshot
   ↓ application / controller
 World simulation
   ↓ presentation / renderer
-Sprite Atlas
-  ↓ presentation / asset boundary
+SpriteAtlas + transparent SVG
+  ↓
 Tauri window
 ```
 
@@ -81,14 +75,14 @@ Tauri window
   - 入力Adapter、世界、Rendererのオーケストレーション
 - `src/infrastructure/`
   - Tauri IPCとデモ入力
-- `src/presentation/pixelRenderer.ts`
-  - 世界状態を画面構成とアニメーションへ変換
 - `src/presentation/spriteAtlas.ts`
-  - アトラス座標、透過素材の読み込み、回転・反転・基準点を管理
+  - 透明アトラスの座標、回転、反転、基準点、読込状態
+- `src/presentation/pixelRenderer.ts`
+  - Canvas配置、レイヤー順、キャラクター演出、解像度適応
 - `public/assets/token-fire/sprites.svg`
-  - キャラクター、小物、建物、樹木、天候エフェクトを分離した透明アトラス
+  - キャラクター、工場、自然、小物、エフェクトの透明統合アトラス
 
-HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。見た目を変更する場合も、シミュレーションへ触れずアトラスとRendererだけを交換できます。
+HooksやApp Serverを追加する場合も、新しい入力Adapterから同じ `AgentSnapshot` 境界へ変換します。素材を差し替える場合も、世界シミュレーションを変更せず `SpriteAtlas` 側で管理できます。
 
 ## 検出について
 
