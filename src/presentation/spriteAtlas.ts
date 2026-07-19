@@ -39,6 +39,8 @@ export interface DrawSpriteOptions {
   anchorY?: number;
 }
 
+export type SpriteAtlasState = "loading" | "ready" | "error";
+
 const CELL = 128;
 
 export const SPRITE_FRAMES: Record<SpriteKey, SpriteFrame> = {
@@ -68,21 +70,30 @@ export const SPRITE_FRAMES: Record<SpriteKey, SpriteFrame> = {
   splash: { x: CELL * 7, y: CELL * 2, width: CELL, height: CELL },
 };
 
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
 export class SpriteAtlas {
   private readonly image = new Image();
-  private loaded = false;
+  private currentState: SpriteAtlasState = "loading";
 
   constructor(onReady?: () => void) {
     this.image.decoding = "async";
     this.image.addEventListener("load", () => {
-      this.loaded = true;
+      this.currentState = "ready";
       onReady?.();
+    });
+    this.image.addEventListener("error", () => {
+      this.currentState = "error";
     });
     this.image.src = "/assets/token-fire/sprites.svg";
   }
 
+  get state(): SpriteAtlasState {
+    return this.currentState;
+  }
+
   get ready(): boolean {
-    return this.loaded;
+    return this.currentState === "ready";
   }
 
   draw(
@@ -94,12 +105,12 @@ export class SpriteAtlas {
     height: number,
     options: DrawSpriteOptions = {},
   ): boolean {
-    if (!this.loaded) return false;
+    if (!this.ready || width <= 0 || height <= 0) return false;
     const frame = SPRITE_FRAMES[key];
-    const alpha = options.alpha ?? 1;
-    const rotation = options.rotation ?? 0;
-    const anchorX = options.anchorX ?? 0.5;
-    const anchorY = options.anchorY ?? 1;
+    const alpha = clamp01(options.alpha ?? 1);
+    const rotation = Number.isFinite(options.rotation) ? (options.rotation ?? 0) : 0;
+    const anchorX = clamp01(options.anchorX ?? 0.5);
+    const anchorY = clamp01(options.anchorY ?? 1);
 
     ctx.save();
     ctx.globalAlpha *= alpha;
