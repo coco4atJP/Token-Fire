@@ -23,7 +23,7 @@ jobs:
         run: |
           npm run dev -- --host 127.0.0.1 > /tmp/token-fire-vite.log 2>&1 &
           for i in {1..30}; do
-            curl --silent --fail http://127.0.0.1:5173 >/dev/null && exit 0
+            curl --silent --fail http://127.0.0.1:1420 >/dev/null && exit 0
             sleep 1
           done
           cat /tmp/token-fire-vite.log
@@ -37,7 +37,7 @@ jobs:
 
           const browser = await chromium.launch({ headless: true });
           const desktop = await browser.newPage({ viewport: { width: 560, height: 350 }, deviceScaleFactor: 1 });
-          await desktop.goto("http://127.0.0.1:5173", { waitUntil: "networkidle" });
+          await desktop.goto("http://127.0.0.1:1420", { waitUntil: "networkidle" });
           await desktop.waitForTimeout(6_000);
           await desktop.screenshot({ path: "visual-qa/active-medium.png" });
           await desktop.waitForTimeout(12_000);
@@ -46,7 +46,7 @@ jobs:
           await desktop.screenshot({ path: "visual-qa/recovery.png" });
 
           const compact = await browser.newPage({ viewport: { width: 380, height: 240 }, deviceScaleFactor: 1 });
-          await compact.goto("http://127.0.0.1:5173", { waitUntil: "networkidle" });
+          await compact.goto("http://127.0.0.1:1420", { waitUntil: "networkidle" });
           await compact.waitForTimeout(6_000);
           await compact.screenshot({ path: "visual-qa/compact-active.png" });
           await browser.close();
