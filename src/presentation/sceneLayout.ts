@@ -11,9 +11,8 @@ export interface SubagentPlacement extends ActorPlacement {
 }
 
 /**
- * World-space coordinates for the 320 × 192 diorama.
- * Keeping layout outside the renderer makes visual tuning independent from
- * animation/state logic and prevents coordinate drift between modes.
+ * 320 × 192 のジオラマ内で使用するワールド座標。
+ * 座標と寸法をRendererから分離し、状態ロジックと見た目調整の境界を保つ。
  */
 export const SCENE_LAYOUT = {
   forge: { x: 238, y: 158, width: 81, height: 75 },
