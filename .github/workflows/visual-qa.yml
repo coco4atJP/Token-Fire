@@ -1,8 +1,7 @@
 name: Visual QA
 
 on:
-  push:
-    branches: ["agent/tauri-codex-diorama"]
+  pull_request:
 
 jobs:
   capture:
