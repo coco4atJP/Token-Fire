@@ -1,22 +1,120 @@
-name: Audio Diagnostics
+name: Audio QA
 
 on:
-  push:
-    branches: ["agent/tauri-codex-diorama"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
-  diagnose:
+  audio-qa:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
-      - name: Capture build diagnostics
-        run: npm run build > audio-build.log 2>&1 || true
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/token-fire-vite.log 2>&1 &
+          for i in {1..30}; do
+            curl --silent --fail http://127.0.0.1:1420 >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/token-fire-vite.log
+          exit 1
+      - name: Verify audio graph and controls
+        run: |
+          mkdir -p audio-qa
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { chromium } from "playwright";
+
+          const browser = await chromium.launch({
+            headless: true,
+            args: ["--autoplay-policy=no-user-gesture-required"],
+          });
+          const page = await browser.newPage({ viewport: { width: 560, height: 350 } });
+          const consoleErrors = [];
+          page.on("console", (message) => {
+            if (message.type() === "error") consoleErrors.push(message.text());
+          });
+          page.on("pageerror", (error) => consoleErrors.push(error.message));
+
+          await page.addInitScript(() => {
+            localStorage.setItem("token-fire.audio.enabled", "true");
+            const NativeAudioContext = window.AudioContext;
+            window.__tokenFireAudioStats = { contexts: 0, oscillators: 0, bufferSources: 0, gains: 0 };
+            if (!NativeAudioContext) return;
+            class ObservedAudioContext extends NativeAudioContext {
+              constructor(options) {
+                super(options);
+                window.__tokenFireAudioStats.contexts += 1;
+              }
+              createOscillator() {
+                window.__tokenFireAudioStats.oscillators += 1;
+                return super.createOscillator();
+              }
+              createBufferSource() {
+                window.__tokenFireAudioStats.bufferSources += 1;
+                return super.createBufferSource();
+              }
+              createGain() {
+                window.__tokenFireAudioStats.gains += 1;
+                return super.createGain();
+              }
+            }
+            Object.defineProperty(window, "AudioContext", {
+              configurable: true,
+              value: ObservedAudioContext,
+            });
+          });
+
+          await page.goto("http://127.0.0.1:1420", { waitUntil: "networkidle" });
+          await page.locator(".shell").hover();
+          await page.locator("canvas").click({ position: { x: 270, y: 170 } });
+          await page.waitForTimeout(7_000);
+
+          const soundButton = page.locator("#sound-button");
+          const initialText = await soundButton.textContent();
+          const initialPressed = await soundButton.getAttribute("aria-pressed");
+          const stats = await page.evaluate(() => window.__tokenFireAudioStats);
+
+          await soundButton.click();
+          const mutedText = await soundButton.textContent();
+          const mutedPressed = await soundButton.getAttribute("aria-pressed");
+          await page.keyboard.press("m");
+          const restoredText = await soundButton.textContent();
+          const restoredPressed = await soundButton.getAttribute("aria-pressed");
+          const savedPreference = await page.evaluate(() => localStorage.getItem("token-fire.audio.enabled"));
+          await page.screenshot({ path: "audio-qa/sound-control.png" });
+
+          const checks = {
+            audioContextCreated: stats.contexts >= 1,
+            ambientOscillatorsCreated: stats.oscillators >= 2,
+            rainOrNoiseSourceCreated: stats.bufferSources >= 1,
+            gainGraphCreated: stats.gains >= 4,
+            initiallyEnabled: initialText === "🔊" && initialPressed === "true",
+            clickMutes: mutedText === "🔇" && mutedPressed === "false",
+            keyboardRestores: restoredText === "🔊" && restoredPressed === "true",
+            preferencePersisted: savedPreference === "true",
+            consoleHealthy: consoleErrors.length === 0,
+          };
+          const report = { checks, stats, consoleErrors };
+          fs.writeFileSync("audio-qa/report.json", JSON.stringify(report, null, 2));
+          await browser.close();
+
+          const failed = Object.entries(checks).filter(([, passed]) => !passed);
+          if (failed.length > 0) {
+            throw new Error(`Audio QA failed: ${failed.map(([name]) => name).join(", ")}`);
+          }
+          NODE
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: audio-build-diagnostics
-          path: audio-build.log
+          name: audio-qa
+          path: audio-qa
           retention-days: 1
