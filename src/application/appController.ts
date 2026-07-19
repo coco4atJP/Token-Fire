@@ -2,6 +2,7 @@ import { IDLE_SNAPSHOT, type AgentSnapshot } from "../domain/agent";
 import { addTokenDelta, createWorld, updateWorld, type WorldState } from "../domain/world";
 import type { AgentSource } from "../infrastructure/codexClient";
 import { DemoAgentSource } from "../infrastructure/demoSource";
+import type { AudioDirector } from "../presentation/audioDirector";
 import { PixelRenderer } from "../presentation/pixelRenderer";
 
 export type SourceMode = "codex" | "demo";
@@ -26,6 +27,7 @@ export class AppController {
   constructor(
     private readonly codexSource: AgentSource,
     private readonly renderer: PixelRenderer,
+    private readonly audio: AudioDirector,
     private readonly view: ControllerView,
   ) {
     this.activeSource = codexSource;
@@ -33,11 +35,14 @@ export class AppController {
 
   start(): void {
     this.view.setSourceMode(this.sourceMode);
+    // Desktop WebViews may allow audio immediately. Browsers resume it on the first user gesture.
+    void this.audio.unlock();
     this.animationFrame = requestAnimationFrame(this.tick);
   }
 
   stop(): void {
     cancelAnimationFrame(this.animationFrame);
+    this.audio.dispose();
   }
 
   setMode(mode: SourceMode): void {
@@ -56,6 +61,7 @@ export class AppController {
     const dt = (now - this.lastFrame) / 1000;
     this.lastFrame = now;
     updateWorld(this.world, this.snapshot, dt);
+    this.audio.update(this.world, this.snapshot);
     this.renderer.render(this.world, this.snapshot);
 
     if (now - this.lastPoll > 700 && !this.polling) {
