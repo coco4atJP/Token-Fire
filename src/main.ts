@@ -18,7 +18,7 @@ app.innerHTML = `
       <button id="size-button" type="button" title="表示サイズ切替">SIZE</button>
       <button id="close-button" type="button" title="閉じる">×</button>
     </div>
-    <canvas id="world" width="320" height="192" aria-label="Token-Fire pixel diorama"></canvas>
+    <canvas id="world" width="640" height="384" aria-label="Token-Fire mascot diorama"></canvas>
     <div class="status-line"><span class="connection-dot recovering"></span><span id="connection">WAITING FOR CODEX</span></div>
   </main>
 `;
