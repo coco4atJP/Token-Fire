@@ -12,8 +12,8 @@ export class DemoAgentSource implements AgentSource {
 
   async poll(): Promise<AgentSnapshot> {
     const elapsed = (Date.now() - this.startedAt) / 1000;
-    const cycle = elapsed % 34;
-    const active = cycle < 24;
+    const cycle = elapsed % 38;
+    const active = cycle < 27;
     let status: AgentSnapshot["status"] = "idle";
     let effort: ReasoningEffort = "medium";
     let tool: string | null = null;
@@ -21,13 +21,13 @@ export class DemoAgentSource implements AgentSource {
     let tokenDelta = 0;
 
     if (active) {
-      activeSessions = cycle > 13 ? 3 : cycle > 8 ? 2 : 1;
-      effort = cycle > 17 ? "xhigh" : cycle > 10 ? "high" : cycle > 4 ? "medium" : "low";
+      activeSessions = cycle > 15 ? 3 : cycle > 9 ? 2 : 1;
+      effort = cycle > 20 ? "xhigh" : cycle > 12 ? "high" : cycle > 4 ? "medium" : "low";
       status = cycle < 4 ? "thinking" : "working";
-      tool = cycle > 16 ? "spawn_agent" : cycle > 11 ? "apply_patch" : cycle > 6 ? "shell" : null;
+      tool = cycle > 23 ? "approval_review" : cycle > 17 ? "spawn_agent" : cycle > 12 ? "apply_patch" : cycle > 6 ? "shell" : null;
       tokenDelta = Math.round(30 + activeSessions * 24 + (effort === "xhigh" ? 80 : effort === "high" ? 40 : 0));
       this.totalTokens += tokenDelta;
-    } else if (cycle < 27) {
+    } else if (cycle < 31) {
       status = "completed";
     }
 
@@ -40,6 +40,11 @@ export class DemoAgentSource implements AgentSource {
       effort,
       tool,
       sessionTitle: "Token-Fire demo",
+      sessionId: "token-fire-demo-session",
+      projectKey: "demo-token-fire",
+      projectLabel: "Demo Factory",
+      projectPath: null,
+      model: cycle > 20 ? "gpt-5.6-codex" : "gpt-5-mini",
       updatedAtMs: Date.now(),
       source: "demo",
     };
