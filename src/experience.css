@@ -98,7 +98,7 @@
 }
 
 .chill-card.is-visible {
-  opacity: calc(.38 + var(--chill) * .62);
+  opacity: var(--chill-opacity, .38);
   transform: translate(-50%, 0);
 }
 
@@ -112,22 +112,24 @@
 }
 
 .ambient-fireflies i {
-  --x: calc((var(--i) * 31 + 17) * 1%);
   position: absolute;
   left: var(--x);
-  bottom: calc(13% + (var(--i) % 4) * 9%);
+  bottom: var(--y);
   width: 3px;
   height: 3px;
   border-radius: 50%;
   opacity: 0;
   background: #eaff9a;
   box-shadow: 0 0 7px #d9ff8e;
-  animation: firefly calc(7s + var(--i) * .7s) ease-in-out infinite;
-  animation-delay: calc(var(--i) * -.9s);
+  animation-name: firefly;
+  animation-duration: var(--duration);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay);
 }
 
 .experience-layer[data-phase="chill"] .ambient-fireflies i {
-  opacity: calc(var(--chill) * .75);
+  opacity: var(--firefly-opacity, 0);
 }
 
 .factory-growth {
@@ -144,7 +146,7 @@
 .factory-growth i {
   display: block;
   width: 5px;
-  height: calc(12px + var(--heat) * 16px);
+  height: var(--factory-height, 12px);
   border: 1px solid rgba(25, 20, 19, .7);
   border-radius: 2px 2px 0 0;
   background: linear-gradient(#71777a, #34373a);
@@ -152,6 +154,40 @@
 
 .factory-growth.is-active {
   opacity: .88;
+}
+
+.ceremony-confetti {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.ceremony-confetti i {
+  position: absolute;
+  top: -12px;
+  left: var(--x);
+  width: 5px;
+  height: 9px;
+  border-radius: 1px;
+  background: #ffd75e;
+}
+
+.ceremony-confetti i:nth-child(3n) {
+  background: #9ee38b;
+}
+
+.ceremony-confetti i:nth-child(3n + 1) {
+  background: #ff8a5b;
+}
+
+.experience-layer.has-ceremony .ceremony-confetti {
+  opacity: .9;
+}
+
+.experience-layer.has-ceremony .ceremony-confetti i {
+  animation: confetti-fall 2.3s cubic-bezier(.2,.7,.25,1) infinite;
+  animation-delay: var(--delay);
 }
 
 .greenwash-stamp {
@@ -243,6 +279,12 @@
   70% { transform: translate(-5px, -15px); }
 }
 
+@keyframes confetti-fall {
+  0% { transform: translateY(-12px) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(230px) rotate(560deg); opacity: 0; }
+}
+
 @keyframes stamp-in {
   0% { opacity: 0; transform: translateX(-50%) rotate(-8deg) scale(1.7); }
   12%, 78% { opacity: .96; transform: translateX(-50%) rotate(-8deg) scale(1); }
@@ -254,5 +296,6 @@
   .chill-card,
   .reality-check { transition: none; }
   .ambient-fireflies,
+  .ceremony-confetti,
   .chill-card__pulse { display: none; }
 }
