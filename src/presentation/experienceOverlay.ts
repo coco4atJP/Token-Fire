@@ -8,6 +8,14 @@ export interface ExperiencePresenter {
 
 const formatNumber = (value: number): string => Math.floor(value).toLocaleString("ja-JP");
 
+const COMBUSTION_EVENTS = new Set([
+  "token-burn",
+  "tree-harvest",
+  "coolant-drain",
+  "forge-sneeze",
+  "cinder-feast",
+]);
+
 export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly root: HTMLDivElement;
   private readonly phaseHud: HTMLDivElement;
@@ -83,7 +91,11 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     const metrics = getWorldMetrics(world);
     const event = world.activeEvent;
     const ceremony = event?.type === "greenwash-ceremony" || event?.type === "union-dance" || event?.type === "legendary-zoy";
-    const activelyBurning = snapshot.active && (world.combustionPulse > 0.04 || world.tokenQueue > 1);
+    const activelyBurning = snapshot.active && (
+      world.combustionPulse > 0.04 ||
+      world.tokenQueue > 1 ||
+      (event !== null && COMBUSTION_EVENTS.has(event.type))
+    );
     this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
     this.root.style.setProperty("--chill", world.chill.toFixed(3));
     this.root.style.setProperty("--chill-opacity", (0.38 + world.chill * 0.62).toFixed(3));
