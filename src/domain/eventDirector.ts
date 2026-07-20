@@ -35,12 +35,14 @@ export class EventDirector {
     if (errored) {
       const wasted = Math.max(world.taskTokens, next.tokenDelta);
       world.debt.wastedTokens += wasted;
+      this.clearEventBacklog(world);
       enqueueWorldEvent(world, "sunk-cost-error", wasted);
       world.taskTokens = 0;
     } else if (stopped || (next.status === "completed" && previous.status !== "completed")) {
       if (world.taskTokens > 0 || previous.active) {
         world.debt.completedJobs += 1;
         world.debt.greenwashCeremonies += 1;
+        this.clearEventBacklog(world);
         enqueueWorldEvent(world, "greenwash-ceremony", Math.max(1, world.taskTokens), {
           line: `焼却 ${Math.round(world.taskTokens).toLocaleString()} TOK。苗木を一本植えて相殺しました。`,
         });
@@ -71,11 +73,16 @@ export class EventDirector {
     }
   }
 
+  private clearEventBacklog(world: WorldState): void {
+    world.eventQueue = [];
+    world.activeEvent = null;
+    world.eventElapsed = 0;
+  }
+
   private toolEvent(tool: string): WorldEventType | null {
     if (tool === "shell") return "coolant-drain";
     if (tool === "apply_patch") return "tree-harvest";
     if (tool === "web_search") return "tree-harvest";
-    if (tool.includes("agent")) return "factory-expansion";
     return null;
   }
 
