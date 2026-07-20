@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "./agent";
+import { effortMultiplier, type AgentSnapshot } from "./agent";
 import { enqueueWorldEvent, type WorldState } from "./world";
 import type { WorldEventType } from "./worldEvent";
 
@@ -11,6 +11,7 @@ export class EventDirector {
     const started = next.active && !previous.active;
     const stopped = !next.active && previous.active;
     const errored = next.status === "error" && previous.status !== "error";
+    const aborted = stopped && next.status !== "completed";
     const compacted = next.status === "compacting" && previous.status !== "compacting";
     const agentExpansion = next.activeSessions > previous.activeSessions && next.activeSessions > 1;
     const toolChanged = next.active && next.tool !== previous.tool && next.tool !== null;
@@ -32,13 +33,20 @@ export class EventDirector {
 
     if (compacted) enqueueWorldEvent(world, "context-landfill", Math.max(1, world.taskTokens));
 
-    if (errored) {
+    if (errored || aborted) {
+      this.settlePendingFuel(world, previous);
       const wasted = Math.max(world.taskTokens, next.tokenDelta);
       world.debt.wastedTokens += wasted;
       this.clearEventBacklog(world);
-      enqueueWorldEvent(world, "sunk-cost-error", wasted);
+      enqueueWorldEvent(world, "sunk-cost-error", wasted, {
+        line: aborted
+          ? `処理を中断。成果はなくても ${Math.round(wasted).toLocaleString()} TOK は焼却済みです。`
+          : `成果はなくても ${Math.round(wasted).toLocaleString()} TOK は返ってこない！`,
+      });
       world.taskTokens = 0;
+      world.taskPeakAgents = 0;
     } else if (stopped || (next.status === "completed" && previous.status !== "completed")) {
+      this.settlePendingFuel(world, previous);
       if (world.taskTokens > 0 || previous.active) {
         world.debt.completedJobs += 1;
         world.debt.greenwashCeremonies += 1;
@@ -72,6 +80,37 @@ export class EventDirector {
       enqueueWorldEvent(world, event, world.chill);
       this.chillTimer = 34 + this.random() * 28;
     }
+  }
+
+  private settlePendingFuel(world: WorldState, snapshot: AgentSnapshot): void {
+    const pending = Math.max(0, world.tokenQueue);
+    if (pending <= 0) return;
+
+    const intensity = effortMultiplier(snapshot.effort) * (1 + Math.max(0, snapshot.activeSessions - 1) * 0.38);
+    world.tokenQueue = 0;
+    world.tokenProduced += pending;
+    world.taskTokens += pending;
+    world.debt.totalTokensBurned += pending;
+    world.combustionPulse = 1;
+    world.heat = Math.min(1, world.heat + pending * 0.00013);
+    world.pollution = Math.min(1, world.pollution + pending * 0.000075);
+    world.water = Math.max(0.04, world.water - pending * 0.000008 * (0.6 + intensity));
+    world.destructionScore += pending / 120;
+
+    const threshold = Math.max(240, 460 / Math.max(0.7, intensity));
+    let destructiveFuel = world.harvestProgress + pending;
+    let ignitions = 0;
+    while (destructiveFuel >= threshold && ignitions < 4) {
+      destructiveFuel -= threshold;
+      const candidates = world.trees.filter((tree) => tree.stage === "grown" || tree.stage === "sapling");
+      if (candidates.length === 0) break;
+      const tree = candidates[Math.floor(this.random() * candidates.length)];
+      tree.stage = "burning";
+      tree.burn = 0;
+      ignitions += 1;
+    }
+    world.harvestProgress = destructiveFuel;
+    world.fuelProgress = (world.fuelProgress + pending) % 192;
   }
 
   private coalesceTokenEvents(world: WorldState): void {
