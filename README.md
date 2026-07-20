@@ -95,6 +95,7 @@ Codexの作業ディレクトリごとに別の世界を持ちます。
 - 完了通知は任意
 - `Calm / Balanced / Chaos`でイベント密度を変更
 - 30分の`QUIET`／`WAKE`
+- 深夜Quiet中でも30分だけ起こせる一時上書き
 - Quiet時間中は通知、イベント音、目立つ吹き出しを抑制
 - 1分あたりのイベントSE数を制限
 - `prefers-reduced-motion`、ミュート、低点滅設定を尊重
@@ -194,7 +195,7 @@ Token-FireはCodexの非公開内部状態へ侵入せず、ローカルのJSONL
 - Windows / macOS実機ビルド
 - コード署名、Notarization
 - インストーラー、GitHub Releases、自動更新
-- OS別Tray、通知、自動起動、マルチモニターE2E
+- OS別Tray、通知、自動起動、Fullscreen／画面共有／Do Not Disturb、マルチモニターE2E
 - セーブデータ移行とクラッシュ復元試験
 
 ## ライセンス
