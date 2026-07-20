@@ -27,7 +27,14 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root.innerHTML = `
       <div class="factory-growth" aria-hidden="true"></div>
       <div class="ambient-fireflies" aria-hidden="true">
-        ${Array.from({ length: 9 }, (_, index) => `<i style="--i:${index}"></i>`).join("")}
+        ${Array.from({ length: 9 }, (_, index) => {
+          const x = (index * 37 + 13) % 92;
+          const y = 14 + (index % 4) * 9;
+          return `<i style="--x:${x}%;--y:${y}%;--duration:${7 + index * 0.7}s;--delay:${index * -0.9}s"></i>`;
+        }).join("")}
+      </div>
+      <div class="ceremony-confetti" aria-hidden="true">
+        ${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s;--spin:${index % 2 === 0 ? 1 : -1}"></i>`).join("")}
       </div>
       <section class="world-event" aria-live="polite">
         <div class="world-event__title"></div>
@@ -66,7 +73,9 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     const metrics = getWorldMetrics(world);
     this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
     this.root.style.setProperty("--chill", world.chill.toFixed(3));
-    this.root.style.setProperty("--heat", world.heat.toFixed(3));
+    this.root.style.setProperty("--chill-opacity", (0.38 + world.chill * 0.62).toFixed(3));
+    this.root.style.setProperty("--firefly-opacity", (world.chill * 0.75).toFixed(3));
+    this.root.style.setProperty("--factory-height", `${12 + world.heat * 16}px`);
 
     const event = world.activeEvent;
     if (event) {
@@ -79,11 +88,14 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
         void this.eventCard.offsetWidth;
         this.eventCard.classList.add("is-entering");
       }
+      const ceremony = event.type === "greenwash-ceremony" || event.type === "union-dance" || event.type === "legendary-zoy";
       this.stamp.classList.toggle("is-visible", event.type === "greenwash-ceremony");
+      this.root.classList.toggle("has-ceremony", ceremony);
       this.lastEventId = event.id;
     } else {
       this.eventCard.classList.remove("is-visible", "is-entering");
       this.stamp.classList.remove("is-visible");
+      this.root.classList.remove("has-ceremony");
     }
 
     this.chillCard.classList.toggle("is-visible", !snapshot.active && world.chill > 0.18);
