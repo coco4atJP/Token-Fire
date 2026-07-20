@@ -81,6 +81,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
     const metrics = getWorldMetrics(world);
+    const event = world.activeEvent;
+    const ceremony = event?.type === "greenwash-ceremony" || event?.type === "union-dance" || event?.type === "legendary-zoy";
     const activelyBurning = snapshot.active && (world.combustionPulse > 0.04 || world.tokenQueue > 1);
     this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
     this.root.style.setProperty("--chill", world.chill.toFixed(3));
@@ -88,21 +90,26 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root.style.setProperty("--firefly-opacity", (world.chill * 0.75).toFixed(3));
     this.root.style.setProperty("--factory-height", `${12 + world.heat * 16}px`);
 
-    this.phaseHud.dataset.phase = snapshot.status === "error" ? "error" : snapshot.active ? (activelyBurning ? "burning" : "idling") : "chill";
     if (snapshot.status === "error") {
+      this.phaseHud.dataset.phase = "error";
       this.phaseTitle.textContent = "TOKEN FORGE · SUNK COST";
       this.phaseDetail.textContent = `成果ゼロ · 焼却済み ${formatNumber(metrics.wastedTokens)} TOK`;
+    } else if (event?.type === "greenwash-ceremony") {
+      this.phaseHud.dataset.phase = "ceremony";
+      this.phaseTitle.textContent = "PROFIT CEREMONY · GREENWASHING";
+      this.phaseDetail.textContent = `焼却 ${formatNumber(event.magnitude)} TOK · 苗木一本で相殺済み`;
     } else if (snapshot.active) {
+      this.phaseHud.dataset.phase = activelyBurning ? "burning" : "idling";
       this.phaseTitle.textContent = activelyBurning ? "TOKEN FORGE · INCINERATING" : "TOKEN FORGE · AWAITING FUEL";
       this.phaseDetail.textContent = activelyBurning
         ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} AGENT · QUEUE ${formatNumber(world.tokenQueue)} TOK`
         : `${snapshot.effort.toUpperCase()} · 工場はアイドリング中 · 森林被害なし`;
     } else {
+      this.phaseHud.dataset.phase = "chill";
       this.phaseTitle.textContent = "PLANTATION CHILL · REFORESTING";
       this.phaseDetail.textContent = `CHILL ${metrics.chillPercent}% · RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}%`;
     }
 
-    const event = world.activeEvent;
     if (event) {
       this.root.dataset.event = event.type;
       this.eventCard.classList.add("is-visible");
@@ -114,7 +121,6 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
         void this.eventCard.offsetWidth;
         this.eventCard.classList.add("is-entering");
       }
-      const ceremony = event.type === "greenwash-ceremony" || event.type === "union-dance" || event.type === "legendary-zoy";
       this.stamp.classList.toggle("is-visible", event.type === "greenwash-ceremony");
       this.root.classList.toggle("has-ceremony", ceremony);
       this.lastEventId = event.id;
@@ -125,7 +131,7 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.root.classList.remove("has-ceremony");
     }
 
-    this.chillCard.classList.toggle("is-visible", !snapshot.active && world.chill > 0.18);
+    this.chillCard.classList.toggle("is-visible", !snapshot.active && !ceremony && world.chill > 0.18);
     if (!snapshot.active) {
       const messages = [
         "工場と脳を冷却しています",
