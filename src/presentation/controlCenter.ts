@@ -9,7 +9,7 @@ import { downloadBlob, exportReplayData, exportReplayVideo } from "./replayExpor
 import { exportEnvironmentalDebtReport } from "./reportGenerator";
 
 export class ControlCenter {
-  private readonly root: HTMLDivElement;
+  private readonly root: HTMLElement;
   private readonly body: HTMLElement;
   private open = false;
   private activeTab = "ledger";
