@@ -1,4 +1,4 @@
-import type { AgentSnapshot } from "../domain/agent";
+import { projectKeyOf, projectLabelOf, type AgentSnapshot } from "../domain/agent";
 import type { ReplayFrame, ReplaySession } from "../domain/experienceData";
 import { addHistoricalMoment, type WorldState } from "../domain/world";
 
@@ -23,7 +23,7 @@ export class ReplayRecorder {
   onSnapshot(world: WorldState, previous: AgentSnapshot, next: AgentSnapshot): void {
     if (next.active && !this.recording) this.start(next, world);
     const ended = this.recording && !next.active && previous.active;
-    const projectChanged = this.recording && next.projectKey !== this.recording.projectKey;
+    const projectChanged = this.recording && projectKeyOf(next) !== this.recording.projectKey;
     if (ended || projectChanged) this.finish(world, next.status === "error" || next.status === "idle");
   }
 
@@ -34,9 +34,7 @@ export class ReplayRecorder {
     if (!recording || world.elapsed - recording.lastCaptureAt < CAPTURE_INTERVAL) return;
     recording.lastCaptureAt = world.elapsed;
     recording.frames.push(captureFrame(world, snapshot, recording.startedAt));
-    if (recording.frames.length > MAX_FRAMES) {
-      recording.frames = recording.frames.filter((_, index) => index % 2 === 0);
-    }
+    if (recording.frames.length > MAX_FRAMES) recording.frames = recording.frames.filter((_, index) => index % 2 === 0);
   }
 
   stop(world: WorldState): void {
@@ -44,15 +42,16 @@ export class ReplayRecorder {
   }
 
   private start(snapshot: AgentSnapshot, world: WorldState): void {
+    const startedAt = Date.now();
     this.recording = {
-      id: `${Date.now()}-${snapshot.sessionId ?? "session"}`,
-      projectKey: snapshot.projectKey,
-      projectLabel: snapshot.projectLabel,
-      sessionId: snapshot.sessionId,
+      id: `${startedAt}-${snapshot.sessionId ?? "session"}`,
+      projectKey: projectKeyOf(snapshot),
+      projectLabel: projectLabelOf(snapshot),
+      sessionId: snapshot.sessionId ?? null,
       title: snapshot.sessionTitle ?? "Codex task",
-      model: snapshot.model,
-      startedAt: Date.now(),
-      frames: [captureFrame(world, snapshot, Date.now())],
+      model: snapshot.model ?? null,
+      startedAt,
+      frames: [captureFrame(world, snapshot, startedAt)],
       lastCaptureAt: world.elapsed,
     };
   }
