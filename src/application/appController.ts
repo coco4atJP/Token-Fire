@@ -1,4 +1,4 @@
-import { IDLE_SNAPSHOT, type AgentSnapshot } from "../domain/agent";
+import { IDLE_SNAPSHOT, projectKeyOf, projectLabelOf, type AgentSnapshot } from "../domain/agent";
 import { CharacterDirector } from "../domain/characterDirector";
 import { EventDirector } from "../domain/eventDirector";
 import { addTokenDelta, enqueueWorldEvent, updateWorld, type WorldState } from "../domain/world";
@@ -141,7 +141,8 @@ export class AppController {
     this.polling = true;
     try {
       const next = await this.activeSource.poll();
-      if (next.projectKey !== this.world.projectKey) this.switchProject(next);
+      const nextProjectKey = projectKeyOf(next);
+      if (nextProjectKey !== this.world.projectKey) this.switchProject(next);
       addTokenDelta(this.world, next.tokenDelta);
       this.replay.onSnapshot(this.world, this.snapshot, next);
       this.attention.onSnapshot(this.world, this.snapshot, next);
@@ -153,7 +154,7 @@ export class AppController {
         this.sourceMode === "demo"
           ? "DEMO SIGNAL"
           : next.source === "codex-jsonl"
-            ? `CODEX · ${next.projectLabel}`
+            ? `CODEX · ${projectLabelOf(next)}`
             : "WAITING FOR CODEX",
       );
     } catch (error) {
@@ -183,14 +184,14 @@ export class AppController {
     this.persistence.save(this.world);
     this.world = this.persistence.loadProject(metaFromSnapshot(next));
     enqueueWorldEvent(this.world, "project-arrival", 1, {
-      line: `${next.projectLabel}事業所へ作業員と環境債務台帳を移動しました。`,
+      line: `${projectLabelOf(next)}事業所へ作業員と環境債務台帳を移動しました。`,
     });
   }
 }
 
 const metaFromSnapshot = (snapshot: AgentSnapshot): ProjectMeta => ({
-  key: snapshot.projectKey || "global",
-  label: snapshot.projectLabel || "Global Factory",
-  path: snapshot.projectPath,
-  model: snapshot.model,
+  key: projectKeyOf(snapshot),
+  label: projectLabelOf(snapshot),
+  path: snapshot.projectPath ?? null,
+  model: snapshot.model ?? null,
 });
