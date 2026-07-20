@@ -28,6 +28,7 @@ export class AppController {
   private polling = false;
   private animationFrame = 0;
   private persistenceTimer = 0;
+  private stopped = false;
 
   constructor(
     private readonly codexSource: AgentSource,
@@ -42,18 +43,22 @@ export class AppController {
   }
 
   start(): void {
+    if (this.stopped) return;
     this.view.setSourceMode(this.sourceMode);
     void this.audio.unlock();
     this.animationFrame = requestAnimationFrame(this.tick);
   }
 
   stop(): void {
+    if (this.stopped) return;
+    this.stopped = true;
     cancelAnimationFrame(this.animationFrame);
     this.persistence.save(this.world);
     this.audio.dispose();
   }
 
   setMode(mode: SourceMode): void {
+    if (this.stopped) return;
     this.sourceMode = mode;
     if (mode === "demo") {
       this.demoSource.restart();
@@ -66,6 +71,7 @@ export class AppController {
   }
 
   private readonly tick = (now: number): void => {
+    if (this.stopped) return;
     const dt = Math.min(0.08, Math.max(0, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
 
@@ -93,12 +99,13 @@ export class AppController {
   };
 
   private async pollSource(): Promise<void> {
+    if (this.stopped) return;
     this.polling = true;
     try {
       const next = await this.activeSource.poll();
+      addTokenDelta(this.world, next.tokenDelta);
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
       this.snapshot = next;
-      addTokenDelta(this.world, next.tokenDelta);
       this.view.setStatus(next);
       this.view.setConnectionLabel(
         this.sourceMode === "demo"
