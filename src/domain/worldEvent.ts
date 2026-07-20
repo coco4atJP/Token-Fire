@@ -38,7 +38,7 @@ const COPY: Record<WorldEventType, EventCopy> = {
     tone: "destruction",
     title: "TOKEN INCINERATION",
     line: "考えるほど森が減る。賢さの証明だ！",
-    duration: 2.4,
+    duration: 1.8,
   },
   "tree-harvest": {
     tone: "destruction",
