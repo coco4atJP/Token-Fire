@@ -95,7 +95,6 @@ export class EventDirector {
     world.heat = Math.min(1, world.heat + pending * 0.00013);
     world.pollution = Math.min(1, world.pollution + pending * 0.000075);
     world.water = Math.max(0.04, world.water - pending * 0.000008 * (0.6 + intensity));
-    world.destructionScore += pending / 120;
 
     const threshold = Math.max(240, 460 / Math.max(0.7, intensity));
     let destructiveFuel = world.harvestProgress + pending;
