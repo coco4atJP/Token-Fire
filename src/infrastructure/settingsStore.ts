@@ -15,11 +15,15 @@ export class SettingsStore extends EventTarget {
   }
 
   update(patch: Partial<AppSettings>): AppSettings {
+    const nextAttention = { ...this.settings.attention, ...(patch.attention ?? {}) };
+    if (patch.attention?.quietUntil === 0 && this.isScheduledQuiet(new Date(), nextAttention)) {
+      nextAttention.quietUntil = -(Date.now() + 30 * 60_000);
+    }
     this.settings = {
       ...this.settings,
       ...patch,
       weather: { ...this.settings.weather, ...(patch.weather ?? {}) },
-      attention: { ...this.settings.attention, ...(patch.attention ?? {}) },
+      attention: nextAttention,
       enabledEventPacks: patch.enabledEventPacks ?? this.settings.enabledEventPacks,
     };
     this.persist();
@@ -44,6 +48,10 @@ export class SettingsStore extends EventTarget {
     const nowMs = now.getTime();
     if (attention.quietUntil > nowMs) return true;
     if (attention.quietUntil < -nowMs) return false;
+    return this.isScheduledQuiet(now, attention);
+  }
+
+  private isScheduledQuiet(now: Date, attention: AppSettings["attention"]): boolean {
     const hour = now.getHours();
     const start = attention.quietHoursStart;
     const end = attention.quietHoursEnd;
