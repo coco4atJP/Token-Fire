@@ -10,6 +10,9 @@ const formatNumber = (value: number): string => Math.floor(value).toLocaleString
 
 export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly root: HTMLDivElement;
+  private readonly phaseHud: HTMLDivElement;
+  private readonly phaseTitle: HTMLDivElement;
+  private readonly phaseDetail: HTMLDivElement;
   private readonly eventCard: HTMLDivElement;
   private readonly eventTitle: HTMLDivElement;
   private readonly eventLine: HTMLDivElement;
@@ -25,6 +28,10 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root = document.createElement("div");
     this.root.className = "experience-layer";
     this.root.innerHTML = `
+      <section class="phase-hud" aria-live="polite">
+        <div class="phase-hud__title"></div>
+        <div class="phase-hud__detail"></div>
+      </section>
       <div class="factory-growth" aria-hidden="true"></div>
       <div class="ambient-fireflies" aria-hidden="true">
         ${Array.from({ length: 9 }, (_, index) => {
@@ -34,7 +41,7 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
         }).join("")}
       </div>
       <div class="ceremony-confetti" aria-hidden="true">
-        ${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s;--spin:${index % 2 === 0 ? 1 : -1}"></i>`).join("")}
+        ${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s"></i>`).join("")}
       </div>
       <section class="world-event" aria-live="polite">
         <div class="world-event__title"></div>
@@ -56,6 +63,9 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     `;
     host.append(this.root);
 
+    this.phaseHud = this.requireElement(".phase-hud");
+    this.phaseTitle = this.requireElement(".phase-hud__title");
+    this.phaseDetail = this.requireElement(".phase-hud__detail");
     this.eventCard = this.requireElement(".world-event");
     this.eventTitle = this.requireElement(".world-event__title");
     this.eventLine = this.requireElement(".world-event__line");
@@ -71,14 +81,30 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
     const metrics = getWorldMetrics(world);
+    const activelyBurning = snapshot.active && (world.combustionPulse > 0.04 || world.tokenQueue > 1);
     this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
     this.root.style.setProperty("--chill", world.chill.toFixed(3));
     this.root.style.setProperty("--chill-opacity", (0.38 + world.chill * 0.62).toFixed(3));
     this.root.style.setProperty("--firefly-opacity", (world.chill * 0.75).toFixed(3));
     this.root.style.setProperty("--factory-height", `${12 + world.heat * 16}px`);
 
+    this.phaseHud.dataset.phase = snapshot.status === "error" ? "error" : snapshot.active ? (activelyBurning ? "burning" : "idling") : "chill";
+    if (snapshot.status === "error") {
+      this.phaseTitle.textContent = "TOKEN FORGE · SUNK COST";
+      this.phaseDetail.textContent = `成果ゼロ · 焼却済み ${formatNumber(metrics.wastedTokens)} TOK`;
+    } else if (snapshot.active) {
+      this.phaseTitle.textContent = activelyBurning ? "TOKEN FORGE · INCINERATING" : "TOKEN FORGE · AWAITING FUEL";
+      this.phaseDetail.textContent = activelyBurning
+        ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} AGENT · QUEUE ${formatNumber(world.tokenQueue)} TOK`
+        : `${snapshot.effort.toUpperCase()} · 工場はアイドリング中 · 森林被害なし`;
+    } else {
+      this.phaseTitle.textContent = "PLANTATION CHILL · REFORESTING";
+      this.phaseDetail.textContent = `CHILL ${metrics.chillPercent}% · RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}%`;
+    }
+
     const event = world.activeEvent;
     if (event) {
+      this.root.dataset.event = event.type;
       this.eventCard.classList.add("is-visible");
       this.eventCard.dataset.tone = event.tone;
       this.eventTitle.textContent = event.title;
@@ -93,6 +119,7 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.root.classList.toggle("has-ceremony", ceremony);
       this.lastEventId = event.id;
     } else {
+      delete this.root.dataset.event;
       this.eventCard.classList.remove("is-visible", "is-entering");
       this.stamp.classList.remove("is-visible");
       this.root.classList.remove("has-ceremony");
