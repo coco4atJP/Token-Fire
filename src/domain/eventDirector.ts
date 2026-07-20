@@ -1,4 +1,5 @@
 import { effortMultiplier, type AgentSnapshot } from "./agent";
+import { readEnergy, readFactoryGrowthLevel } from "./energyScale";
 import { enqueueWorldEvent, type WorldState } from "./world";
 import type { WorldEventType } from "./worldEvent";
 
@@ -21,10 +22,7 @@ export class EventDirector {
       world.taskPeakAgents = Math.max(1, next.activeSessions);
     }
 
-    if (agentExpansion) {
-      world.factoryTier = Math.max(world.factoryTier, Math.min(5, 1 + next.activeSessions));
-      enqueueWorldEvent(world, "factory-expansion", next.activeSessions);
-    }
+    if (agentExpansion) enqueueWorldEvent(world, "factory-expansion", next.activeSessions);
 
     if (toolChanged && next.tool) {
       const type = this.toolEvent(next.tool);
@@ -37,6 +35,8 @@ export class EventDirector {
       this.settlePendingFuel(world, previous);
       const wasted = Math.max(world.taskTokens, next.tokenDelta);
       world.debt.wastedTokens += wasted;
+      world.debt.largestTaskTokens = Math.max(world.debt.largestTaskTokens, world.taskTokens);
+      world.debt.lastModel = previous.model ?? world.debt.lastModel;
       this.clearEventBacklog(world);
       enqueueWorldEvent(world, "sunk-cost-error", wasted, {
         line: aborted
@@ -50,6 +50,8 @@ export class EventDirector {
       if (world.taskTokens > 0 || previous.active) {
         world.debt.completedJobs += 1;
         world.debt.greenwashCeremonies += 1;
+        world.debt.largestTaskTokens = Math.max(world.debt.largestTaskTokens, world.taskTokens);
+        world.debt.lastModel = previous.model ?? world.debt.lastModel;
         this.clearEventBacklog(world);
         enqueueWorldEvent(world, "greenwash-ceremony", Math.max(1, world.taskTokens), {
           line: `焼却 ${Math.round(world.taskTokens).toLocaleString()} TOK。苗木を一本植えて相殺しました。`,
@@ -60,11 +62,12 @@ export class EventDirector {
     }
   }
 
-  update(world: WorldState, snapshot: AgentSnapshot, dt: number): void {
+  update(world: WorldState, snapshot: AgentSnapshot, dt: number, eventRate = 1, quiet = false): void {
     this.coalesceTokenEvents(world);
     if (snapshot.active) {
       this.chillTimer = 32;
-      this.rareTimer -= dt;
+      if (quiet) return;
+      this.rareTimer -= dt * Math.max(0.15, eventRate);
       if (this.rareTimer <= 0) {
         const rare = this.pickActiveRare(snapshot);
         enqueueWorldEvent(world, rare, Math.max(1, snapshot.activeSessions));
@@ -74,7 +77,8 @@ export class EventDirector {
     }
 
     this.rareTimer = Math.max(this.rareTimer, 14);
-    this.chillTimer -= dt;
+    if (quiet) return;
+    this.chillTimer -= dt * Math.max(0.15, eventRate);
     if (world.chill > 0.62 && this.chillTimer <= 0) {
       const event: WorldEventType = this.random() > 0.44 ? "plantation-break" : "recovery-rainbow";
       enqueueWorldEvent(world, event, world.chill);
@@ -86,11 +90,18 @@ export class EventDirector {
     const pending = Math.max(0, world.tokenQueue);
     if (pending <= 0) return;
 
-    const intensity = effortMultiplier(snapshot.effort) * (1 + Math.max(0, snapshot.activeSessions - 1) * 0.38);
+    const sessions = Math.max(1, snapshot.activeSessions);
+    const intensity = effortMultiplier(snapshot.effort) * (1 + Math.max(0, sessions - 1) * 0.38);
+    const energy = readEnergy(pending, snapshot.model ?? null, sessions, snapshot.effort);
     world.tokenQueue = 0;
     world.tokenProduced += pending;
     world.taskTokens += pending;
     world.debt.totalTokensBurned += pending;
+    world.debt.weightedTokensBurned += energy.weightedTokens;
+    world.energyLevel = energy.level;
+    world.energyLabel = energy.label;
+    world.growthLevel = readFactoryGrowthLevel(world.debt.weightedTokensBurned);
+    world.factoryTier = Math.min(5, 1 + Math.floor(world.growthLevel / 6));
     world.combustionPulse = 1;
     world.heat = Math.min(1, world.heat + pending * 0.00013);
     world.pollution = Math.min(1, world.pollution + pending * 0.000075);
@@ -117,10 +128,7 @@ export class EventDirector {
     if (tokenEvents.length <= 1) return;
     const first = tokenEvents[0];
     first.magnitude = tokenEvents.reduce((sum, event) => sum + event.magnitude, 0);
-    world.eventQueue = [
-      ...world.eventQueue.filter((event) => event.type !== "token-burn"),
-      first,
-    ].slice(0, 8);
+    world.eventQueue = [...world.eventQueue.filter((event) => event.type !== "token-burn"), first].slice(0, 8);
   }
 
   private clearEventBacklog(world: WorldState): void {
@@ -131,8 +139,7 @@ export class EventDirector {
 
   private toolEvent(tool: string): WorldEventType | null {
     if (tool === "shell") return "coolant-drain";
-    if (tool === "apply_patch") return "tree-harvest";
-    if (tool === "web_search") return "tree-harvest";
+    if (tool === "apply_patch" || tool === "web_search") return "tree-harvest";
     return null;
   }
 
