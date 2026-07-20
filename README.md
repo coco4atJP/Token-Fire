@@ -182,6 +182,22 @@ Tauri window + Tray + Notification + localStorage
 
 主要な責務は`AGENTS.md`を参照してください。
 
+## 検証
+
+- TypeScript/Vite本番ビルド
+- Rust/Tauri `cargo check`
+- Codex Parserテスト
+- PLAYでのキャラクター反応
+- 24段階の相対表示
+- 記録棚と設定
+- 深夜Quietの一時WAKE
+- Replay動作データの保存
+- ReplayからWebMの生成
+- 環境債務報告書HTMLの生成
+- JSONイベントパックの読込
+- Compact表示と水平オーバーフロー
+- ブラウザコンソールエラーなし
+
 ## 現実の環境負荷について
 
 Token-FireはCodexの非公開内部状態へ侵入せず、ローカルのJSONLを読み取ります。外部へ送るのは、ユーザーが任意で有効化した天気取得時の手入力座標だけです。
