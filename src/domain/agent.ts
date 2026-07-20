@@ -17,6 +17,11 @@ export interface AgentSnapshot {
   effort: ReasoningEffort;
   tool: string | null;
   sessionTitle: string | null;
+  sessionId: string | null;
+  projectKey: string;
+  projectLabel: string;
+  projectPath: string | null;
+  model: string | null;
   updatedAtMs: number;
   source: string;
 }
@@ -30,6 +35,11 @@ export const IDLE_SNAPSHOT: AgentSnapshot = {
   effort: "medium",
   tool: null,
   sessionTitle: null,
+  sessionId: null,
+  projectKey: "global",
+  projectLabel: "Global Factory",
+  projectPath: null,
+  model: null,
   updatedAtMs: 0,
   source: "waiting-for-codex",
 };
