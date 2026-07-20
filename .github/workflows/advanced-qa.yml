@@ -1,0 +1,39 @@
+name: Advanced Experience QA
+
+on:
+  push:
+    branches: ["agent/tauri-codex-diorama"]
+  pull_request:
+
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start Vite
+        run: |
+          npm run dev -- --host 127.0.0.1 > vite.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:1420 >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat vite.log
+          exit 1
+      - name: Run advanced QA
+        run: node scripts/advanced-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: advanced-qa
+          path: |
+            qa-output
+            vite.log
+          retention-days: 1
