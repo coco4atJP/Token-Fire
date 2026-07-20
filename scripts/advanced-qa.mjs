@@ -38,11 +38,14 @@ try {
   const quietButton = page.locator("#quiet-button");
   if (await page.locator(".shell.is-quiet").count()) {
     await quietButton.click();
+    await page.waitForTimeout(180);
     if (await page.locator(".shell.is-quiet").count()) throw new Error("scheduled quiet could not be temporarily overridden");
   }
   await quietButton.click();
+  await page.waitForTimeout(180);
   if (!(await page.locator(".shell.is-quiet").count())) throw new Error("quiet mode class missing");
   await quietButton.click();
+  await page.waitForTimeout(180);
   if (await page.locator(".shell.is-quiet").count()) throw new Error("wake override did not clear quiet state");
 
   await page.waitForTimeout(23500);
