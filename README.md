@@ -1,7 +1,7 @@
 # Token-Fire 🔥🌲
 
 **AIがTokenを燃やすたび、可愛い作業員たちが嬉々として環境を破壊する。**  
-Tokenを燃やしていない間だけ、雨・植林・静かな音で工場と人間の認知負荷を冷却する、Tauri製デスクトップ・ジオラマです。
+燃やしていない間だけ、雨・植林・静かな音で工場と人間の認知負荷を冷却する、Tauri製デスクトップ・ジオラマです。
 
 > 「環境破壊はたのしいZOY!!」という悪趣味でコミカルな勢いに着想を得た、非公式・非提携のオリジナル作品です。既存作品のキャラクターや素材は使用していません。
 
@@ -9,61 +9,112 @@ Tokenを燃やしていない間だけ、雨・植林・静かな音で工場と
 
 Token-Fireは環境保護を褒めるアプリではありません。
 
-- AI推論が実際に計算資源・電力・冷却を必要とする現実を、ブラックコメディとして可視化する
+- AI推論が計算資源・電力・冷却を必要とする現実をブラックコメディとして可視化する
 - Token投入と破壊の因果を、炉・伐採・冷却水・煙へ明確につなげる
 - キャラクターは徹底して可愛く、やっていることは非情にする
-- 作業完了時は反省せず、利益パレードとグリーンウォッシュで祝う
-- 待機中は次回燃焼分の森林在庫を補充しながら、人間側にはChillな休止時間を渡す
-- ユーザーを責めず、罪悪感ごと笑える玩具にする
+- 完了時は反省せず、利益パレードとグリーンウォッシュで祝う
+- 待機中は次回燃焼分の森林在庫を補充し、人間側にはChillな休止時間を渡す
+- ユーザーを責めず、罪悪感ごと笑えるデスクトップ玩具にする
 
-表示されるToken・破壊スコアは実測CO₂や水使用量ではありません。`INFO`または`I`キーからReality Checkを確認できます。
+表示は実測Wh・CO₂・水使用量ではありません。Token量、モデル名、Reasoning Effort、並列Agent数から、`ほぼおひるね`〜`説明をあきらめるほど`までの**24段階のふわっとした相対表現**を作ります。
 
 ## 現在できること
 
-- `~/.codex/sessions/**/rollout-*.jsonl` を自動監視
-- Codex Desktop / CLIの思考・ツール実行・完了を推定
-- 生成Tokenの累積値を差分化し、重複せず燃料として投入
-- **Tokenが来ないActive時間では工場がアイドリングするだけで、木は燃えない**
-- Token量、Reasoning Effort、並列Agent数で炉の処理速度と破壊規模が変化
-- 稼働中は伐採・延焼・煙・Token精製・湖の冷却水利用
-- タスク終了直前の未処理Tokenも、完了判定前に環境債務と破壊へ精算
-- Abort時は完了扱いにせず、成果ゼロ・排出満額の損失イベントとして記録
-- `shell`、`apply_patch`、Web Search、Compacting、Subagent増加に固有イベント
-- Error時は成果ゼロでも消費済みTokenを環境債務へ記録
+### Token燃焼と世界
+
+- `~/.codex/sessions/**/rollout-*.jsonl`をRustで増分監視
+- Codex Desktop / CLIの思考、ツール実行、承認待ち、完了を推定
+- 生成Tokenの累積値を差分化し、重複やInputだけの増加を燃料へ数えない
+- Tokenが来ないActive時間は工場がアイドリングするだけで木を燃やさない
+- Token量、モデル名、Effort、並列Agent数を24段階の相対的な「多さ」へ変換
+- 稼働中は伐採、延焼、煙、Token精製、湖の冷却水利用
+- Abort／Errorでは成果ゼロ・排出満額として環境債務だけを残す
 - 完了時は紙吹雪と`SUSTAINABLE*`スタンプでグリーンウォッシュ式典
 - 待機中は雨、植林、蛍、ゆっくりしたモーション、Chill音響へ移行
-- 累計燃焼Token、無駄になったToken、伐採数、工場Tierをローカル保存
-- 再起動後も焼け跡と環境債務を引き継ぎ、オフライン中は少しだけ回復
-- 悪徳企業コントと低確率のレアイベント
-- 透明、枠なし、常時最前面のTauriウィンドウ
+
+### プロジェクト別事業所
+
+Codexの作業ディレクトリごとに別の世界を持ちます。
+
+- 森、湖、焼け跡、工場設備をプロジェクト別に保存
+- 累計Token、無駄Token、伐採、全焼、最大Agent数を事業所別に記録
+- 別のリポジトリへ移ると作業員と環境債務台帳を自動で切り替え
+- 旧v2データは`Legacy Factory`として移行
+- オフライン中は最大12時間分だけ静かに回復
+
+### じんわりした工場成長
+
+累計の相対Token量に応じて24段階で少しずつ変化します。
+
+- 小煙突、配管、足場、設備灯が徐々に増える
+- 大きな変身やレベルアップ画面は出さない
+- 4段階ごとにだけ、小さな設備増設イベントを表示
+- 通常画面では現在段階を控えめに表示
+
+### キャラクターの生活と直接操作
+
+- Codex状態と関係なく、帳簿確認、燃料盗み食い、過積載、植林、昼寝などを自律的に行う
+- キャラクター同士の悪徳企業コントを小さな吹き出しで表示
+- `PLAY`中だけキャラクターをクリック可能
+- Emberbeak、Cinder、Axle、Vapo、Spriglet、Drizzleに固有反応
+- 森をクリックすると「経営者手動処理」で木を一本処理
+- Drizzleの雨配送位置をドラッグ操作
+- 通常時は入力レイヤーを無効化し、PC操作を邪魔しない
+
+### 記録棚
+
+`LEDGER`からだけ開く、控えめな企業史です。
+
+- 「最近こういうこともありました」と事故・式典・珍しい日常を保存
+- プロジェクト事業所一覧
+- 遭遇済みイベントの記憶
+- 収集率、未発見数、ストリークは表示しない
+- 環境債務報告書をHTMLで書き出し
+- 全事業所データをJSONで書き出し
+
+### Replay / タイムラプス
+
+動画ファイルは自動保存しません。
+
+- タスク中の世界状態を約1秒ごとの軽量な動作データとして保存
+- 長いタスクは自動的に間引き
+- プロジェクトごとに直近24タスクまで保持
+- 共有したい時だけ動作データから短いWebMを生成
+- `MediaRecorder`が利用できない環境ではJSON動作データへフォールバック
+
+### 時刻と天気
+
+- 端末のローカル時刻で朝、昼、夕方、夜の空を変更
+- 外の天気との連動は任意
+- 場所名、緯度、経度を手入力し、位置情報権限は要求しない
+- 雨、雪、霧、嵐を背景とイベントパックへ反映
+
+### 通知とAttention Policy
+
+- 承認待ち時にベル演出と任意のOS通知
+- 完了通知は任意
+- `Calm / Balanced / Chaos`でイベント密度を変更
+- 30分の`QUIET`／`WAKE`
+- Quiet時間中は通知、イベント音、目立つ吹き出しを抑制
+- 1分あたりのイベントSE数を制限
+- `prefers-reduced-motion`、ミュート、低点滅設定を尊重
+
+### 常駐
+
+- System Trayから表示、非表示、終了
+- ×ボタンは終了ではなくTrayへ退避
+- 二重起動時は既存ウィンドウを前面へ戻す
+- 任意のOS自動起動
+- `Ctrl/Cmd + Shift + F`で表示
+- 透明、枠なし、常時最前面
 - Compact / Diorama / Wideの3サイズ
-- Codexがなくても試せるデモモード
-- 6体のオリジナルマスコットと透明SVGアトラス
-- Web Audio APIによるプロシージャルサウンド
 
-## 体験の流れ
+### Event Pack
 
-### 1. 受注・Thinking
-
-Emberbeakがハンマーを構え、工場がアイドリングします。まだ生成Tokenが届いていないため、森は燃えません。
-
-### 2. Token焼却
-
-生成Tokenが炉へ投入されると、Token結晶、ハンマー、煙、伐採、湖の冷却水消費が始まります。大量Token時は燃焼イベントが集約され、イベント表示が渋滞しないよう制御します。
-
-### 3. 過剰生産
-
-Reasoning Effortや並列Agent数が上がると、作業員と煙突が増え、工場Tierが恒久的に成長します。
-
-### 4. 完了・グリーンウォッシュ
-
-焼却Token数を発表し、苗木一本で相殺したことにして式典を行います。タスク終了直前に残った炉内燃料も先に精算されるため、次のタスクへ環境債務を持ち越しません。
-
-AbortやErrorでは式典を行わず、成果ゼロのまま消費済みTokenだけが損失として残ります。
-
-### 5. Plantation Chill
-
-工場停止中はDrizzle PuffとSprigletが森林在庫を補充します。雨音、低刺激の和音、蛍、呼吸するようなUIで、Agent利用後の認知負荷を少し下げます。
+- 組み込みイベントをパックとして管理
+- 条件: Active／Chill、Agent数、24段階の多さ、Tool、時刻、天気
+- JSONパックを記録棚から追加可能
+- 読み込んだデータは検証し、任意コードは実行しない
 
 ## キャラクター
 
@@ -75,18 +126,6 @@ AbortやErrorでは式典を行わず、成果ゼロのまま消費済みToken�
 - **Vapo**: 湖の精ではなく、実質的には可愛い冷却水タンク
 - **Spriglet**: 自然保護ではなく、高速再生する燃料林の管理者
 - **Drizzle Puff**: 森より先に工場を冷やす冷却担当。Chill時間も受け持つ
-
-## イベント例
-
-- `TOKEN INCINERATION`: Tokenを炉へ焼却
-- `FOREST INVENTORY WITHDRAWAL`: 木材在庫を引き出す
-- `COOLANT ACQUISITION`: 湖を期限未定で借りる
-- `PARALLELIZATION ACHIEVED`: Agent数に合わせ煙突を増設
-- `CONTEXT LANDFILL`: Contextを圧縮処分
-- `ZERO OUTPUT · FULL EMISSIONS`: Error／Abortで成果なし、環境債務だけ残る
-- `SUSTAINABILITY CERTIFIED`: 完了時のグリーンウォッシュ式典
-- `PLANTATION INTERMISSION`: 認知負荷を冷やす植林休止
-- 炉のくしゃみ、Token盗み食い、Subagent利益ダンスなどのレアイベント
 
 ## 使い方
 
@@ -104,76 +143,59 @@ npm install
 npm run tauri dev
 ```
 
-起動後は自動的にCodexのローカルセッションログを監視します。右上の操作ボタンはウィンドウへカーソルを置いた時だけ表示されます。
+### 操作
 
-- `DEMO`: Codex入力と内蔵デモを切り替え
-- `SIZE`: 3つの表示サイズを切り替え
-- `INFO`: Reality Checkを表示
+- `PLAY / DONE`: 直接操作の開始・終了
+- `LEDGER`: 記録、事業所、Replay、イベント、設定
+- `QUIET / WAKE`: 30分休止・解除
+- `DEMO / CODEX`: 内蔵デモとCodex入力の切替
+- `SIZE`: 3サイズ切替
+- `INFO`: Reality Check
 - `🔊 / 🔇`: サウンド切替
-- `×`: 終了
-- 上端をドラッグ: 移動
-- `D`: Codex / Demo切替
-- `I`: Reality Check
-- `M`: サウンド切替
-- `Esc`: Reality Checkを閉じる
+- `×`: Trayへ隠す
+- 上端をドラッグ: ウィンドウ移動
+- `P / L / Q / D / I / M`: 各操作のショートカット
+- `Esc`: 開いている操作面を閉じる
+- `Ctrl/Cmd + Shift + F`: Trayから表示
 
-サウンドは初期状態で有効です。ブラウザや一部WebViewでは自動再生制限があるため、初回だけウィンドウ内をクリックまたはキー入力すると音が始まります。設定はローカルに保存されます。
-
-### 単体で体験を確認する
-
-Codexが動いていない状態でも、`DEMO`を押すとlowからxhighまで火力が上がり、複数Agent化、グリーンウォッシュ式典、Chill植林まで一周します。
-
-## サウンド設計
-
-音声ファイルは同梱せず、Web Audio APIで軽量にリアルタイム合成します。
-
-- **炉の環境音**: 稼働状態、熱、汚染、Reasoning Effortに応じて低音が変化
-- **ハンマー**: 実際にToken燃焼が起きている間だけ打撃状態へ移行
-- **Token結晶**: Token差分と並列Agent数に応じたチャイム
-- **破壊イベント**: 伐採、工場拡張、エラー、式典に固有SE
-- **Chill**: 雨音と非常に小さな持続和音。作業再開時は素早く消える
-- **ミュート**: `M`またはツールバー。設定を保存
-
-基礎音響は`audioDirector.ts`、風刺イベントとChill音響は`experienceAudio.ts`へ分離しています。
+ブラウザや一部WebViewでは初回の音声開始にクリックまたはキー入力が必要です。Codexがなくてもブラウザプレビューと`DEMO`で一連の体験を確認できます。
 
 ## 設計
 
 ```text
 Codex JSONL
-  ↓ Rust adapter / token delta normalization
+  ↓ Rust adapter / Token差分・project・model正規化
 AgentSnapshot
-  ↓ application controller
-Token combustion model
+  ↓ AppController
+Project World + Token Combustion
   ↓
-World simulation ── World event queue ── Environmental debt
-  ├─ PixelRenderer
-  ├─ ExperienceOverlay
-  ├─ AudioDirector
-  └─ WorldPersistence
+WorldState + WorldEvent + EnvironmentalDebt
+  ├─ CharacterDirector / EventDirector / EventPackRegistry
+  ├─ PixelRenderer / ExperienceOverlay / InteractionController
+  ├─ AudioDirector / AttentionDirector
+  ├─ ReplayRecorder / ReplayExporter
+  └─ ProjectWorldPersistence
        ↓
-Tauri window + Web Audio + localStorage
+Tauri window + Tray + Notification + localStorage
 ```
 
-### 責務分割
+主要な責務は`AGENTS.md`を参照してください。
 
-- `src-tauri/src/codex/`: ログ探索、増分読み込み、Token差分化、状態正規化
-- `src/domain/world.ts`: Token燃焼、破壊、植林、Chill、環境債務
-- `src/domain/worldEvent.ts`: 表現に依存しないイベント契約
-- `src/domain/eventDirector.ts`: ツールイベント、レアイベント、式典、未処理燃料精算、イベント集約
-- `src/application/appController.ts`: Token登録順序、入力・世界・表示・音・保存のオーケストレーション
-- `src/infrastructure/worldPersistence.ts`: 永続化とオフライン回復
-- `src/presentation/pixelRenderer.ts`: ジオラマとキャラクター描画
-- `src/presentation/experienceOverlay.ts`: フェーズHUD、迷言、式典、Chill、Reality Check
-- `src/presentation/audioDirector.ts`: 基礎環境音と既存SE
-- `src/presentation/experienceAudio.ts`: イベント音とChill和音
+## 現実の環境負荷について
 
-RendererとAudioは同じ状態・イベントを別々に解釈し、互いを直接呼びません。
+Token-FireはCodexの非公開内部状態へ侵入せず、ローカルのJSONLを読み取ります。外部へ送るのは、ユーザーが任意で有効化した天気取得時の手入力座標だけです。
 
-## 検出と現実の環境負荷について
+モデル、ハードウェア、バッチング、データセンター、電源構成が不明なため、正確そうなWh・CO₂・水使用量を捏造しません。24段階の表現は、Token量とモデル名などから作る風刺的な相対尺度です。
 
-Token-FireはCodexの非公開内部状態へ侵入せず、ローカルに保存されたJSONLを読み取ります。ログ形式は将来変わる可能性があるため、監視実装は`src-tauri/src/codex/`へ隔離しています。
+## 残っているTODO
 
-Token表示は厳密な環境負荷の換算ではありません。モデル、ハードウェア、バッチング、データセンター、電源構成などが不明なため、Wh・CO₂・水使用量を正確そうに捏造しません。あくまで実際の計算資源消費を題材にした風刺です。
+公開配布品質だけを`F3`として残しています。詳細は[`TODO.md`](TODO.md)を参照してください。
+
+- Windows / macOS実機ビルド
+- コード署名、Notarization
+- インストーラー、GitHub Releases、自動更新
+- OS別Tray、通知、自動起動、マルチモニターE2E
+- セーブデータ移行とクラッシュ復元試験
 
 ## ライセンス
 
