@@ -40,11 +40,7 @@ impl CodexWatcher {
 
     pub fn poll(&mut self) -> Result<AgentSnapshot, String> {
         let now = SystemTime::now();
-        if now
-            .duration_since(self.last_scan)
-            .unwrap_or_default()
-            >= SCAN_INTERVAL
-        {
+        if now.duration_since(self.last_scan).unwrap_or_default() >= SCAN_INTERVAL {
             self.discover_recent_files(now)?;
             self.last_scan = now;
         }
@@ -68,7 +64,6 @@ impl CodexWatcher {
         let mut files = Vec::new();
         collect_rollout_files(&self.sessions_root, now, &mut files)
             .map_err(|error| format!("failed to scan Codex sessions: {error}"))?;
-
         files.sort_by_key(|(_, modified)| *modified);
         files.reverse();
         files.truncate(MAX_TRACKED_FILES);
@@ -89,7 +84,6 @@ impl CodexWatcher {
         let size = metadata.len();
         let session_id = extract_session_id(&path);
         let mut session = TrackedSession::new(path.clone(), size, session_id);
-
         self.read_session_meta_prefix(&path, &mut session)?;
         self.backfill_tail(&path, size, &mut session)?;
         session.updated_at = metadata.modified().unwrap_or(UNIX_EPOCH);
@@ -98,11 +92,7 @@ impl CodexWatcher {
         Ok(())
     }
 
-    fn read_session_meta_prefix(
-        &self,
-        path: &Path,
-        session: &mut TrackedSession,
-    ) -> Result<(), String> {
+    fn read_session_meta_prefix(&self, path: &Path, session: &mut TrackedSession) -> Result<(), String> {
         let mut file = File::open(path).map_err(|error| error.to_string())?;
         let mut buffer = vec![0_u8; 64 * 1024];
         let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
@@ -119,22 +109,15 @@ impl CodexWatcher {
         Ok(())
     }
 
-    fn backfill_tail(
-        &self,
-        path: &Path,
-        size: u64,
-        session: &mut TrackedSession,
-    ) -> Result<(), String> {
+    fn backfill_tail(&self, path: &Path, size: u64, session: &mut TrackedSession) -> Result<(), String> {
         if size == 0 {
             return Ok(());
         }
         let start = size.saturating_sub(MAX_BACKFILL_BYTES);
         let mut file = File::open(path).map_err(|error| error.to_string())?;
-        file.seek(SeekFrom::Start(start))
-            .map_err(|error| error.to_string())?;
+        file.seek(SeekFrom::Start(start)).map_err(|error| error.to_string())?;
         let mut buffer = Vec::with_capacity((size - start) as usize);
-        file.read_to_end(&mut buffer)
-            .map_err(|error| error.to_string())?;
+        file.read_to_end(&mut buffer).map_err(|error| error.to_string())?;
         let text = String::from_utf8_lossy(&buffer);
         let mut lines = text.lines();
         if start > 0 {
@@ -166,11 +149,9 @@ impl CodexWatcher {
         let available = size - session.offset;
         let read_len = available.min(MAX_LIVE_READ_BYTES);
         let mut file = File::open(path).map_err(|error| error.to_string())?;
-        file.seek(SeekFrom::Start(session.offset))
-            .map_err(|error| error.to_string())?;
+        file.seek(SeekFrom::Start(session.offset)).map_err(|error| error.to_string())?;
         let mut buffer = vec![0_u8; read_len as usize];
-        file.read_exact(&mut buffer)
-            .map_err(|error| error.to_string())?;
+        file.read_exact(&mut buffer).map_err(|error| error.to_string())?;
         session.offset += read_len;
 
         let mut text = std::mem::take(&mut session.partial);
@@ -194,9 +175,7 @@ impl CodexWatcher {
                 continue;
             };
             let outcome = apply_record(&record, session, false);
-            self.pending_token_delta = self
-                .pending_token_delta
-                .saturating_add(outcome.token_delta.min(100_000));
+            self.pending_token_delta = self.pending_token_delta.saturating_add(outcome.token_delta.min(100_000));
         }
         Ok(())
     }
@@ -219,10 +198,7 @@ impl CodexWatcher {
                 .map(|(path, session)| (path.clone(), session.updated_at))
                 .collect();
             by_age.sort_by_key(|(_, updated)| *updated);
-            for (path, _) in by_age
-                .into_iter()
-                .take(self.tracked.len() - MAX_TRACKED_FILES)
-            {
+            for (path, _) in by_age.into_iter().take(self.tracked.len() - MAX_TRACKED_FILES) {
                 self.tracked.remove(&path);
             }
         }
@@ -255,8 +231,7 @@ impl CodexWatcher {
                     (is_active && !current_active)
                         || (is_active == current_active
                             && (session.status.priority() > current.status.priority()
-                                || (session.status == current.status
-                                    && session.updated_at > current.updated_at)))
+                                || (session.status == current.status && session.updated_at > current.updated_at)))
                 }
             };
             if should_choose {
@@ -269,15 +244,23 @@ impl CodexWatcher {
         let active = active_sessions > 0;
         let status = if active {
             chosen.status
-        } else if chosen.status == AgentStatus::Completed
-            && chosen_age <= COMPLETED_VISIBLE_WINDOW
-        {
+        } else if chosen.status == AgentStatus::Completed && chosen_age <= COMPLETED_VISIBLE_WINDOW {
             AgentStatus::Completed
         } else {
             AgentStatus::Idle
         };
 
+        let project_path = chosen.project_path.clone();
+        let project_key = project_path.clone().unwrap_or_else(|| chosen.session_id.clone());
+        let project_label = project_path
+            .as_deref()
+            .and_then(|value| Path::new(value).file_name())
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("Codex Session")
+            .to_string();
         let token_delta = std::mem::take(&mut self.pending_token_delta);
+
         AgentSnapshot {
             active,
             status,
@@ -287,17 +270,18 @@ impl CodexWatcher {
             effort: if active { effort } else { chosen.effort },
             tool: chosen.tool.clone(),
             session_title: chosen.title.clone(),
+            session_id: Some(chosen.session_id.clone()),
+            project_key,
+            project_label,
+            project_path,
+            model: chosen.model.clone(),
             updated_at_ms: millis_since_epoch(chosen.updated_at),
             source: "codex-jsonl".to_string(),
         }
     }
 }
 
-fn collect_rollout_files(
-    directory: &Path,
-    now: SystemTime,
-    output: &mut Vec<(PathBuf, SystemTime)>,
-) -> std::io::Result<()> {
+fn collect_rollout_files(directory: &Path, now: SystemTime, output: &mut Vec<(PathBuf, SystemTime)>) -> std::io::Result<()> {
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
@@ -325,10 +309,7 @@ fn collect_rollout_files(
 }
 
 fn extract_session_id(path: &Path) -> String {
-    let name = path
-        .file_stem()
-        .and_then(|name| name.to_str())
-        .unwrap_or("unknown");
+    let name = path.file_stem().and_then(|name| name.to_str()).unwrap_or("unknown");
     let parts: Vec<&str> = name.split('-').collect();
     if parts.len() >= 5 {
         parts[parts.len() - 5..].join("-")
