@@ -12,6 +12,7 @@ export class ExperienceAudioDirector implements AudioDirector {
   private chillGain: GainNode | null = null;
   private chillOscillators: OscillatorNode[] = [];
   private lastEventId = -1;
+  private disposed = false;
 
   constructor(private readonly base: AudioDirector) {}
 
@@ -20,10 +21,11 @@ export class ExperienceAudioDirector implements AudioDirector {
   }
 
   get supported(): boolean {
-    return this.base.supported;
+    return !this.disposed && this.base.supported;
   }
 
   async unlock(): Promise<boolean> {
+    if (this.disposed) return false;
     const baseUnlocked = await this.base.unlock();
     this.ensureGraph();
     if (this.context?.state === "suspended") {
@@ -37,6 +39,7 @@ export class ExperienceAudioDirector implements AudioDirector {
   }
 
   async toggle(): Promise<boolean> {
+    if (this.disposed) return false;
     const enabled = await this.base.toggle();
     if (enabled) await this.unlock();
     this.syncMaster();
@@ -44,6 +47,7 @@ export class ExperienceAudioDirector implements AudioDirector {
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
+    if (this.disposed) return;
     this.base.update(world, snapshot);
     if (!this.context || !this.master || !this.chillGain) return;
     const now = this.context.currentTime;
@@ -60,6 +64,8 @@ export class ExperienceAudioDirector implements AudioDirector {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.base.dispose();
     for (const oscillator of this.chillOscillators) {
       try {
@@ -68,12 +74,15 @@ export class ExperienceAudioDirector implements AudioDirector {
         // Node may already be stopped.
       }
     }
+    this.chillOscillators = [];
     void this.context?.close();
     this.context = null;
+    this.master = null;
+    this.chillGain = null;
   }
 
   private ensureGraph(): void {
-    if (this.context || !this.supported) return;
+    if (this.context || this.disposed || !this.supported) return;
     const audioWindow = window as AudioWindow;
     const Context = window.AudioContext || audioWindow.webkitAudioContext;
     if (!Context) return;
@@ -111,12 +120,12 @@ export class ExperienceAudioDirector implements AudioDirector {
   }
 
   private syncMaster(): void {
-    if (!this.context || !this.master) return;
+    if (!this.context || !this.master || this.disposed) return;
     this.master.gain.setTargetAtTime(this.enabled ? 0.18 : MIN_GAIN, this.context.currentTime, 0.05);
   }
 
   private playEvent(type: string, magnitude: number): void {
-    if (!this.context || !this.master || !this.enabled || this.context.state !== "running") return;
+    if (!this.context || !this.master || !this.enabled || this.context.state !== "running" || this.disposed) return;
     switch (type) {
       case "token-burn":
       case "tree-harvest":
@@ -151,7 +160,7 @@ export class ExperienceAudioDirector implements AudioDirector {
     endFrequency?: number,
     delay = 0,
   ): void {
-    if (!this.context || !this.master) return;
+    if (!this.context || !this.master || this.disposed) return;
     const start = this.context.currentTime + delay;
     const oscillator = this.context.createOscillator();
     const gain = this.context.createGain();
