@@ -1,4 +1,7 @@
 import { effortMultiplier, type AgentSnapshot } from "./agent";
+import { createCharacterLife, createInteractionState, type CharacterLifeState, type InteractionState, type CharacterId } from "./character";
+import { readEnergy, readFactoryGrowthLevel } from "./energyScale";
+import type { EnvironmentContext, EventDiscovery, HistoricalMoment, ReplaySession } from "./experienceData";
 import { createWorldEvent, type WorldEvent, type WorldEventType } from "./worldEvent";
 
 export type TreeStage = "sapling" | "grown" | "burning" | "charred";
@@ -27,17 +30,25 @@ export interface Particle {
 
 export interface EnvironmentalDebt {
   totalTokensBurned: number;
+  weightedTokensBurned: number;
   wastedTokens: number;
   treesHarvested: number;
   forestWipeouts: number;
   completedJobs: number;
   greenwashCeremonies: number;
   peakAgents: number;
+  largestTaskTokens: number;
+  manualDamage: number;
+  lastModel: string | null;
 }
 
 export interface WorldState {
   width: number;
   height: number;
+  projectKey: string;
+  projectLabel: string;
+  projectPath: string | null;
+  model: string | null;
   trees: Tree[];
   particles: Particle[];
   water: number;
@@ -60,12 +71,21 @@ export interface WorldState {
   taskTokens: number;
   taskPeakAgents: number;
   factoryTier: number;
+  growthLevel: number;
+  energyLevel: number;
+  energyLabel: string;
   activeEvent: WorldEvent | null;
   eventQueue: WorldEvent[];
   eventElapsed: number;
   nextEventId: number;
   debt: EnvironmentalDebt;
   forestWipeoutLatched: boolean;
+  environment: EnvironmentContext;
+  characters: Record<CharacterId, CharacterLifeState>;
+  interaction: InteractionState;
+  history: HistoricalMoment[];
+  discoveries: Record<string, EventDiscovery>;
+  replays: ReplaySession[];
 }
 
 export interface WorldMetrics {
@@ -76,9 +96,14 @@ export interface WorldMetrics {
   destructionScore: number;
   restorationScore: number;
   totalTokensBurned: number;
+  weightedTokensBurned: number;
   wastedTokens: number;
   factoryTier: number;
+  growthLevel: number;
+  energyLevel: number;
+  energyLabel: string;
   chillPercent: number;
+  projectLabel: string;
 }
 
 const TREE_POSITIONS: Array<[number, number, number]> = [
@@ -93,27 +118,43 @@ const TREE_POSITIONS: Array<[number, number, number]> = [
 
 const createDebt = (): EnvironmentalDebt => ({
   totalTokensBurned: 0,
+  weightedTokensBurned: 0,
   wastedTokens: 0,
   treesHarvested: 0,
   forestWipeouts: 0,
   completedJobs: 0,
   greenwashCeremonies: 0,
   peakAgents: 0,
+  largestTaskTokens: 0,
+  manualDamage: 0,
+  lastModel: null,
 });
 
-export const createWorld = (width = 320, height = 192): WorldState => ({
-  width,
-  height,
-  trees: TREE_POSITIONS.map(([x, y, size], id) => ({
-    id,
-    x,
-    y,
-    size,
-    stage: "grown",
-    burn: 0,
-    regrow: 0,
-    sway: id * 0.73,
-  })),
+const defaultEnvironment = (): EnvironmentContext => ({
+  timePhase: "day",
+  hour: new Date().getHours(),
+  weather: "unknown",
+  temperatureC: null,
+  weatherUpdatedAt: 0,
+});
+
+export interface CreateWorldOptions {
+  width?: number;
+  height?: number;
+  projectKey?: string;
+  projectLabel?: string;
+  projectPath?: string | null;
+  model?: string | null;
+}
+
+export const createWorld = (options: CreateWorldOptions = {}): WorldState => ({
+  width: options.width ?? 320,
+  height: options.height ?? 192,
+  projectKey: options.projectKey ?? "global",
+  projectLabel: options.projectLabel ?? "Global Factory",
+  projectPath: options.projectPath ?? null,
+  model: options.model ?? null,
+  trees: TREE_POSITIONS.map(([x, y, size], id) => ({ id, x, y, size, stage: "grown", burn: 0, regrow: 0, sway: id * 0.73 })),
   particles: [],
   water: 0.92,
   heat: 0.08,
@@ -135,12 +176,21 @@ export const createWorld = (width = 320, height = 192): WorldState => ({
   taskTokens: 0,
   taskPeakAgents: 0,
   factoryTier: 1,
+  growthLevel: 0,
+  energyLevel: 0,
+  energyLabel: "ほぼおひるね",
   activeEvent: null,
   eventQueue: [],
   eventElapsed: 0,
   nextEventId: 1,
   debt: createDebt(),
   forestWipeoutLatched: false,
+  environment: defaultEnvironment(),
+  characters: createCharacterLife(),
+  interaction: createInteractionState(),
+  history: [],
+  discoveries: {},
+  replays: [],
 });
 
 const random = (world: WorldState): number => {
@@ -152,18 +202,16 @@ const random = (world: WorldState): number => {
   return world.rngState / 0xffffffff;
 };
 
-const spawn = (
-  world: WorldState,
-  kind: Particle["kind"],
-  x: number,
-  y: number,
-  vx: number,
-  vy: number,
-  life: number,
-  size: number,
-): void => {
+const spawn = (world: WorldState, kind: Particle["kind"], x: number, y: number, vx: number, vy: number, life: number, size: number): void => {
   if (world.particles.length > 480) return;
   world.particles.push({ kind, x, y, vx, vy, life, maxLife: life, size });
+};
+
+const ARCHIVE_COMMON = new Set<WorldEventType>(["token-burn", "tree-harvest", "coolant-drain"]);
+
+export const addHistoricalMoment = (world: WorldState, moment: Omit<HistoricalMoment, "id" | "projectKey">): void => {
+  world.history.unshift({ ...moment, id: `${Date.now()}-${world.nextEventId}-${Math.floor(random(world) * 9999)}`, projectKey: world.projectKey });
+  world.history = world.history.slice(0, 160);
 };
 
 export const enqueueWorldEvent = (
@@ -180,13 +228,32 @@ export const enqueueWorldEvent = (
   } else if (world.eventQueue.length < 8) {
     world.eventQueue.push(event);
   }
+
+  const key = String(type);
+  const discovery = world.discoveries[key];
+  world.discoveries[key] = discovery
+    ? { ...discovery, lastSeenAt: event.createdAt, count: discovery.count + 1, title: event.title, line: event.line }
+    : { eventType: key, firstSeenAt: event.createdAt, lastSeenAt: event.createdAt, count: 1, title: event.title, line: event.line };
+
+  if (!ARCHIVE_COMMON.has(type)) {
+    addHistoricalMoment(world, {
+      at: event.createdAt,
+      type: type === "greenwash-ceremony" || type === "factory-milestone" ? "milestone" : "event",
+      title: event.title,
+      line: event.line,
+      eventType: type,
+      tone: event.tone,
+      tokens: magnitude,
+      model: world.model,
+      importance: type === "legendary-zoy" || type === "sunk-cost-error" ? 3 : type === "greenwash-ceremony" ? 2 : 1,
+    });
+  }
   return event;
 };
 
 const advanceWorldEvents = (world: WorldState, dt: number): void => {
   if (!world.activeEvent) {
-    const next = world.eventQueue.shift() ?? null;
-    world.activeEvent = next;
+    world.activeEvent = world.eventQueue.shift() ?? null;
     world.eventElapsed = 0;
     return;
   }
@@ -208,6 +275,20 @@ const igniteTree = (world: WorldState): boolean => {
   return true;
 };
 
+export const manuallyCharNearestTree = (world: WorldState, x: number, y: number): boolean => {
+  const candidates = world.trees.filter((tree) => tree.stage === "grown" || tree.stage === "sapling");
+  candidates.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+  const tree = candidates[0];
+  if (!tree) return false;
+  tree.stage = "charred";
+  tree.burn = 1;
+  tree.regrow = 0;
+  world.debt.manualDamage += 1;
+  world.destructionScore += 4;
+  enqueueWorldEvent(world, "direct-contact", 1, { title: "EXECUTIVE OVERRIDE", line: "経営者の手動操作で森林在庫を一件処理しました。" });
+  return true;
+};
+
 const updateParticles = (world: WorldState, dt: number): void => {
   for (const particle of world.particles) {
     particle.x += particle.vx * dt;
@@ -220,8 +301,8 @@ const updateParticles = (world: WorldState, dt: number): void => {
     if (particle.kind === "rain") particle.vy += 30 * dt;
     if (particle.kind === "token") particle.vy += 12 * dt;
   }
-  world.particles = world.particles.filter(
-    (particle) => particle.life > 0 && particle.y < world.height + 20 && particle.x > -20 && particle.x < world.width + 20,
+  world.particles = world.particles.filter((particle) =>
+    particle.life > 0 && particle.y < world.height + 20 && particle.x > -20 && particle.x < world.width + 20,
   );
 };
 
@@ -230,9 +311,7 @@ const updateTrees = (world: WorldState, active: boolean, dt: number): void => {
     tree.sway += dt * (active ? 2.2 : 0.48 + world.chill * 0.16);
     if (tree.stage === "burning") {
       tree.burn += dt * (0.1 + world.heat * 0.15);
-      if (random(world) < dt * 9) {
-        spawn(world, "ember", tree.x, tree.y - 15 * tree.size, (random(world) - 0.5) * 10, -12 - random(world) * 10, 0.8, 1 + random(world));
-      }
+      if (random(world) < dt * 9) spawn(world, "ember", tree.x, tree.y - 15 * tree.size, (random(world) - 0.5) * 10, -12 - random(world) * 10, 0.8, 1 + random(world));
       if (tree.burn >= 1) {
         tree.stage = "charred";
         tree.regrow = 0;
@@ -266,14 +345,19 @@ const updateTrees = (world: WorldState, active: boolean, dt: number): void => {
 
 const emitCombustionParticles = (world: WorldState, intensity: number, consumed: number, dt: number): void => {
   const tokenRate = Math.min(12, consumed / 32);
-  if (random(world) < dt * tokenRate) {
-    spawn(world, "token", 255, 124, 14 + random(world) * 8, -10 - random(world) * 4, 2.2, 3);
-  }
-  if (random(world) < dt * (1.5 + intensity * 2 + consumed / 90)) {
-    spawn(world, "smoke", 238 + random(world) * 7, 70, (random(world) - 0.5) * 8, -8 - random(world) * 8, 2.6 + random(world), 3 + random(world) * 2);
-  }
-  if (random(world) < dt * (0.8 + consumed / 70)) {
-    spawn(world, "steam", 278 + random(world) * 24, 118 + random(world) * 12, (random(world) - 0.5) * 5, -7 - random(world) * 5, 1.6, 2.5);
+  if (random(world) < dt * tokenRate) spawn(world, "token", 255, 124, 14 + random(world) * 8, -10 - random(world) * 4, 2.2, 3);
+  if (random(world) < dt * (1.5 + intensity * 2 + consumed / 90)) spawn(world, "smoke", 238 + random(world) * 7, 70, (random(world) - 0.5) * 8, -8 - random(world) * 8, 2.6 + random(world), 3 + random(world) * 2);
+  if (random(world) < dt * (0.8 + consumed / 70)) spawn(world, "steam", 278 + random(world) * 24, 118 + random(world) * 12, (random(world) - 0.5) * 5, -7 - random(world) * 5, 1.6, 2.5);
+};
+
+const updateGrowth = (world: WorldState): void => {
+  const previous = world.growthLevel;
+  world.growthLevel = readFactoryGrowthLevel(world.debt.weightedTokensBurned);
+  world.factoryTier = Math.min(5, 1 + Math.floor(world.growthLevel / 6));
+  if (world.growthLevel > previous && world.growthLevel % 4 === 0) {
+    enqueueWorldEvent(world, "factory-milestone", world.growthLevel, {
+      line: `設備段階 ${world.growthLevel + 1}/24。昨日と同じに見えて、配管が一本増えています。`,
+    });
   }
 };
 
@@ -284,6 +368,8 @@ const updateActiveWorld = (world: WorldState, snapshot: AgentSnapshot, dt: numbe
   const throughput = 110 * intensity * (snapshot.status === "working" ? 1.12 : 0.78);
   const consumed = Math.min(world.tokenQueue, dt * throughput);
 
+  world.model = snapshot.model ?? world.model;
+  world.debt.lastModel = snapshot.model ?? world.debt.lastModel;
   world.chill = Math.max(0, world.chill - dt * 1.7);
   world.combustionPulse = Math.max(0, world.combustionPulse - dt * 2.4);
   world.rain = Math.max(0, world.rain - dt * 0.75);
@@ -299,10 +385,15 @@ const updateActiveWorld = (world: WorldState, snapshot: AgentSnapshot, dt: numbe
   world.tokenProduced += consumed;
   world.taskTokens += consumed;
   world.debt.totalTokensBurned += consumed;
+  world.debt.weightedTokensBurned += readEnergy(consumed, snapshot.model, snapshot.activeSessions, snapshot.effort).weightedTokens;
   if (consumed > 0) world.combustionPulse = Math.min(1, world.combustionPulse + consumed / 96);
   world.fuelProgress += consumed;
   world.harvestProgress += consumed;
 
+  const energy = readEnergy(world.taskTokens + world.tokenQueue, snapshot.model, snapshot.activeSessions, snapshot.effort);
+  world.energyLevel = energy.level;
+  world.energyLabel = energy.label;
+  updateGrowth(world);
   emitCombustionParticles(world, intensity, consumed, dt);
 
   let burstGuard = 0;
@@ -316,9 +407,8 @@ const updateActiveWorld = (world: WorldState, snapshot: AgentSnapshot, dt: numbe
   const harvestThreshold = Math.max(240, 460 / Math.max(0.7, intensity));
   while (world.harvestProgress >= harvestThreshold && burstGuard < 2) {
     world.harvestProgress -= harvestThreshold;
-    if (igniteTree(world)) {
-      enqueueWorldEvent(world, "tree-harvest", harvestThreshold);
-    } else {
+    if (igniteTree(world)) enqueueWorldEvent(world, "tree-harvest", harvestThreshold);
+    else {
       enqueueWorldEvent(world, "coolant-drain", harvestThreshold * 0.6);
       world.water = Math.max(0.04, world.water - 0.012);
     }
@@ -335,15 +425,15 @@ const updateRecoveryWorld = (world: WorldState, dt: number): void => {
   world.quoteTimer = 0;
   world.combustionPulse = Math.max(0, world.combustionPulse - dt * 1.8);
   world.chill = Math.min(1, world.chill + dt * 0.095);
+  world.energyLevel = Math.max(0, world.energyLevel - dt * 0.28);
+  world.energyLabel = world.energyLevel < 1 ? "ほぼおひるね" : world.energyLabel;
   world.factoryPulse += dt * (0.44 + world.chill * 0.22);
   world.heat = Math.max(0.02, world.heat - dt * (0.032 + world.chill * 0.022));
   world.pollution = Math.max(0, world.pollution - dt * (0.017 + world.rain * 0.028));
   world.rain = Math.min(0.9, world.rain + dt * (0.045 + world.chill * 0.018));
   world.water = Math.min(1, world.water + dt * 0.005 * (0.35 + world.rain));
 
-  if (random(world) < dt * world.rain * (18 + world.chill * 8)) {
-    spawn(world, "rain", random(world) * world.width, -5, -6, 64 + random(world) * 30, 2.8, 1);
-  }
+  if (random(world) < dt * world.rain * (18 + world.chill * 8)) spawn(world, "rain", random(world) * world.width, -5, -6, 64 + random(world) * 30, 2.8, 1);
   if (world.rain > 0.35 && random(world) < dt * 0.5) world.restorationScore += 0.2;
 };
 
@@ -370,7 +460,12 @@ export const getWorldMetrics = (world: WorldState): WorldMetrics => ({
   destructionScore: Math.floor(world.destructionScore + world.tokenProduced / 120),
   restorationScore: Math.floor(world.restorationScore),
   totalTokensBurned: Math.floor(world.debt.totalTokensBurned),
+  weightedTokensBurned: Math.floor(world.debt.weightedTokensBurned),
   wastedTokens: Math.floor(world.debt.wastedTokens),
   factoryTier: world.factoryTier,
+  growthLevel: world.growthLevel,
+  energyLevel: Math.floor(world.energyLevel),
+  energyLabel: world.energyLabel,
   chillPercent: Math.round(world.chill * 100),
+  projectLabel: world.projectLabel,
 });
