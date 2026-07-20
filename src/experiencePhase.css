@@ -3,7 +3,7 @@
   z-index: 2;
   top: clamp(7px, 1.5vw, 12px);
   left: clamp(7px, 1.5vw, 12px);
-  width: min(46%, 365px);
+  width: min(48%, 365px);
   min-height: clamp(34px, 8.5vw, 70px);
   padding: clamp(5px, 1.2vw, 9px) clamp(7px, 1.5vw, 12px);
   border: 1px solid rgba(255, 218, 137, .2);
@@ -118,6 +118,20 @@
     width: min(47%, 174px);
     min-height: 34px;
     padding: 5px 7px;
+  }
+
+  .toolbar {
+    top: 6px;
+    right: 5px;
+    gap: 3px;
+  }
+
+  .toolbar button {
+    height: 22px;
+    min-width: 22px;
+    padding: 0 5px;
+    border-radius: 5px;
+    font-size: 7.5px;
   }
 
   .experience-layer .world-event {
