@@ -1,5 +1,5 @@
 import type { AgentSnapshot } from "../domain/agent";
-import { CHARACTER_IDS, type CharacterId } from "../domain/character";
+import { CHARACTER_IDS } from "../domain/character";
 import { getWorldMetrics, type WorldState } from "../domain/world";
 import { weatherLabel } from "../application/environmentDirector";
 
