@@ -3,6 +3,7 @@ name: Experience QA
 on:
   push:
     branches: ["agent/tauri-codex-diorama"]
+  pull_request:
 
 jobs:
   experience-qa:
