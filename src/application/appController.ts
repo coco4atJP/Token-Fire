@@ -110,7 +110,7 @@ export class AppController {
     this.environment.update(this.world);
     this.characterDirector.update(this.world, this.snapshot, dt);
     this.packEvents.update(this.world, this.snapshot, dt);
-    this.eventDirector.update(this.world, this.snapshot, dt);
+    this.eventDirector.update(this.world, this.snapshot, dt, this.attention.modeMultiplier(), this.attention.isQuiet());
     updateWorld(this.world, this.snapshot, dt);
     this.replay.update(this.world, this.snapshot);
 
