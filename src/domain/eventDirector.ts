@@ -53,6 +53,7 @@ export class EventDirector {
   }
 
   update(world: WorldState, snapshot: AgentSnapshot, dt: number): void {
+    this.coalesceTokenEvents(world);
     if (snapshot.active) {
       this.chillTimer = 32;
       this.rareTimer -= dt;
@@ -71,6 +72,17 @@ export class EventDirector {
       enqueueWorldEvent(world, event, world.chill);
       this.chillTimer = 34 + this.random() * 28;
     }
+  }
+
+  private coalesceTokenEvents(world: WorldState): void {
+    const tokenEvents = world.eventQueue.filter((event) => event.type === "token-burn");
+    if (tokenEvents.length <= 1) return;
+    const first = tokenEvents[0];
+    first.magnitude = tokenEvents.reduce((sum, event) => sum + event.magnitude, 0);
+    world.eventQueue = [
+      ...world.eventQueue.filter((event) => event.type !== "token-burn"),
+      first,
+    ].slice(0, 8);
   }
 
   private clearEventBacklog(world: WorldState): void {
