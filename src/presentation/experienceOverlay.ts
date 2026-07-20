@@ -1,5 +1,7 @@
 import type { AgentSnapshot } from "../domain/agent";
+import { CHARACTER_IDS, type CharacterId } from "../domain/character";
 import { getWorldMetrics, type WorldState } from "../domain/world";
+import { weatherLabel } from "../application/environmentDirector";
 
 export interface ExperiencePresenter {
   update(world: WorldState, snapshot: AgentSnapshot): void;
@@ -7,14 +9,7 @@ export interface ExperiencePresenter {
 }
 
 const formatNumber = (value: number): string => Math.floor(value).toLocaleString("ja-JP");
-
-const COMBUSTION_EVENTS = new Set([
-  "token-burn",
-  "tree-harvest",
-  "coolant-drain",
-  "forge-sneeze",
-  "cinder-feast",
-]);
+const COMBUSTION_EVENTS = new Set(["token-burn", "tree-harvest", "coolant-drain", "forge-sneeze", "cinder-feast"]);
 
 export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly root: HTMLDivElement;
@@ -28,6 +23,7 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly chillCard: HTMLDivElement;
   private readonly stamp: HTMLDivElement;
   private readonly factory: HTMLDivElement;
+  private readonly characterBubble: HTMLDivElement;
   private readonly realityDialog: HTMLDivElement;
   private lastEventId = -1;
   private realityVisible = false;
@@ -36,10 +32,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root = document.createElement("div");
     this.root.className = "experience-layer";
     this.root.innerHTML = `
-      <section class="phase-hud" aria-live="polite">
-        <div class="phase-hud__title"></div>
-        <div class="phase-hud__detail"></div>
-      </section>
+      <div class="world-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
+      <section class="phase-hud" aria-live="polite"><div class="phase-hud__title"></div><div class="phase-hud__detail"></div></section>
       <div class="factory-growth" aria-hidden="true"></div>
       <div class="ambient-fireflies" aria-hidden="true">
         ${Array.from({ length: 9 }, (_, index) => {
@@ -48,24 +42,18 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
           return `<i style="--x:${x}%;--y:${y}%;--duration:${7 + index * 0.7}s;--delay:${index * -0.9}s"></i>`;
         }).join("")}
       </div>
-      <div class="ceremony-confetti" aria-hidden="true">
-        ${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s"></i>`).join("")}
-      </div>
-      <section class="world-event" aria-live="polite">
-        <div class="world-event__title"></div>
-        <div class="world-event__line"></div>
-      </section>
+      <div class="ceremony-confetti" aria-hidden="true">${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s"></i>`).join("")}</div>
+      <section class="world-event" aria-live="polite"><div class="world-event__title"></div><div class="world-event__line"></div></section>
+      <div class="character-bubble" aria-live="polite"></div>
       <div class="greenwash-stamp" aria-hidden="true">SUSTAINABLE*</div>
-      <div class="chill-card">
-        <span class="chill-card__pulse"></span>
-        <span class="chill-card__copy">工場と脳を冷却しています</span>
-      </div>
+      <div class="chill-card"><span class="chill-card__pulse"></span><span class="chill-card__copy">工場と脳を冷却しています</span></div>
       <div class="environmental-debt"></div>
       <section class="reality-check" role="dialog" aria-modal="true" aria-label="Reality Check">
         <button class="reality-check__close" type="button" aria-label="閉じる">×</button>
         <div class="reality-check__eyebrow">REALITY CHECK</div>
         <h2>これは風刺的な破壊ジオラマです。</h2>
-        <p>Token-Fireの数値は実測CO₂や水使用量ではありません。ただし、AI推論が実際に計算資源・電力・冷却を必要とし、長いReasoningや大量Tokenほど一般に計算量が増える、という現実を笑って眺めるための表現です。</p>
+        <p>Token-Fireの数値は実測CO₂や水使用量ではありません。Token量・モデル名・Reasoning Effort・並列度から「ちょびっと」「すごくたくさん」など24段階の相対表現を作っています。</p>
+        <p>AI推論が実際に計算資源・電力・冷却を必要とする現実を、正確そうな偽数値を出さずに笑って眺めるための表現です。</p>
         <p class="reality-check__fine">キャラクターは可愛く、事業判断は非情です。</p>
       </section>
     `;
@@ -81,27 +69,28 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.chillCard = this.requireElement(".chill-card");
     this.stamp = this.requireElement(".greenwash-stamp");
     this.factory = this.requireElement(".factory-growth");
+    this.characterBubble = this.requireElement(".character-bubble");
     this.realityDialog = this.requireElement(".reality-check");
-    this.requireElement<HTMLButtonElement>(".reality-check__close").addEventListener("click", () => {
-      this.toggleRealityCheck(false);
-    });
+    this.requireElement<HTMLButtonElement>(".reality-check__close").addEventListener("click", () => this.toggleRealityCheck(false));
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
     const metrics = getWorldMetrics(world);
     const event = world.activeEvent;
     const ceremony = event?.type === "greenwash-ceremony" || event?.type === "union-dance" || event?.type === "legendary-zoy";
-    const activelyBurning = snapshot.active && (
-      world.combustionPulse > 0.04 ||
-      world.tokenQueue > 1 ||
-      (event !== null && COMBUSTION_EVENTS.has(event.type))
-    );
+    const activelyBurning = snapshot.active && (world.combustionPulse > 0.04 || world.tokenQueue > 1 || (event !== null && COMBUSTION_EVENTS.has(event.type)));
+
     this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
+    this.root.dataset.time = world.environment.timePhase;
+    this.root.dataset.weather = world.environment.weather;
+    this.root.dataset.growth = String(world.growthLevel);
     this.root.style.setProperty("--chill", world.chill.toFixed(3));
     this.root.style.setProperty("--chill-opacity", (0.38 + world.chill * 0.62).toFixed(3));
     this.root.style.setProperty("--firefly-opacity", (world.chill * 0.75).toFixed(3));
     this.root.style.setProperty("--factory-height", `${12 + world.heat * 16}px`);
+    this.root.style.setProperty("--growth", (world.growthLevel / 23).toFixed(3));
 
+    const model = snapshot.model ?? world.model ?? "model unknown";
     if (snapshot.status === "error") {
       this.phaseHud.dataset.phase = "error";
       this.phaseTitle.textContent = "TOKEN FORGE · SUNK COST";
@@ -114,12 +103,13 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.phaseHud.dataset.phase = activelyBurning ? "burning" : "idling";
       this.phaseTitle.textContent = activelyBurning ? "TOKEN FORGE · INCINERATING" : "TOKEN FORGE · AWAITING FUEL";
       this.phaseDetail.textContent = activelyBurning
-        ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} AGENT · QUEUE ${formatNumber(world.tokenQueue)} TOK`
+        ? `${metrics.energyLevel + 1}/24 · ${metrics.energyLabel} · ${model}`
         : `${snapshot.effort.toUpperCase()} · 工場はアイドリング中 · 森林被害なし`;
     } else {
       this.phaseHud.dataset.phase = "chill";
       this.phaseTitle.textContent = "PLANTATION CHILL · REFORESTING";
-      this.phaseDetail.textContent = `CHILL ${metrics.chillPercent}% · RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}%`;
+      const temperature = world.environment.temperatureC === null ? "" : ` · ${Math.round(world.environment.temperatureC)}℃`;
+      this.phaseDetail.textContent = `CHILL ${metrics.chillPercent}% · ${weatherLabel(world.environment.weather)}${temperature} · WATER ${metrics.waterPercent}%`;
     }
 
     if (event) {
@@ -143,26 +133,36 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.root.classList.remove("has-ceremony");
     }
 
+    const speaker = CHARACTER_IDS
+      .map((id) => world.characters[id])
+      .filter((state) => state.line && state.until > world.elapsed)
+      .sort((a, b) => b.until - a.until)[0];
+    if (speaker?.line) {
+      this.characterBubble.dataset.character = speaker.id;
+      this.characterBubble.textContent = speaker.line;
+      this.characterBubble.classList.add("is-visible");
+    } else {
+      this.characterBubble.classList.remove("is-visible");
+    }
+
     this.chillCard.classList.toggle("is-visible", !snapshot.active && !ceremony && world.chill > 0.18);
     if (!snapshot.active) {
-      const messages = [
-        "工場と脳を冷却しています",
-        "次回燃焼分を静かに植林中",
-        "雨音のあいだだけ、認知負荷を下げます",
-        "かわいい作業員が森林在庫を補充中",
-      ];
-      const index = Math.floor(world.elapsed / 12) % messages.length;
+      const messages = ["工場と脳を冷却しています", "次回燃焼分を静かに植林中", "雨音のあいだだけ、認知負荷を下げます", "かわいい作業員が森林在庫を補充中"];
       const copy = this.chillCard.querySelector<HTMLElement>(".chill-card__copy");
-      if (copy) copy.textContent = messages[index];
+      if (copy) copy.textContent = messages[Math.floor(world.elapsed / 12) % messages.length];
     }
 
     this.debtStrip.textContent = snapshot.active
-      ? `INCINERATED ${formatNumber(metrics.totalTokensBurned)} TOK · DEBT ${formatNumber(metrics.destructionScore)} · TIER ${metrics.factoryTier}`
-      : `CHILL ${metrics.chillPercent}% · FOREST STOCK ${metrics.livingTrees} · WASTED ${formatNumber(metrics.wastedTokens)} TOK`;
+      ? `${world.projectLabel} · ${formatNumber(metrics.totalTokensBurned)} TOK · 設備 ${metrics.growthLevel + 1}/24`
+      : `${world.projectLabel} · CHILL ${metrics.chillPercent}% · WASTED ${formatNumber(metrics.wastedTokens)} TOK`;
 
-    const chimneyCount = Math.max(1, Math.min(5, world.factoryTier));
-    if (this.factory.childElementCount !== chimneyCount) {
-      this.factory.replaceChildren(...Array.from({ length: chimneyCount }, () => document.createElement("i")));
+    const moduleCount = Math.max(1, Math.min(12, 1 + Math.floor(world.growthLevel / 2)));
+    if (this.factory.childElementCount !== moduleCount) {
+      this.factory.replaceChildren(...Array.from({ length: moduleCount }, (_, index) => {
+        const module = document.createElement("i");
+        module.dataset.module = String(index % 4);
+        return module;
+      }));
     }
     this.factory.classList.toggle("is-active", snapshot.active);
   }
