@@ -3,30 +3,11 @@ import { effortMultiplier, type ReasoningEffort } from "./agent";
 export const ENERGY_LEVEL_COUNT = 24;
 
 const ENERGY_LABELS = [
-  "ほぼおひるね",
-  "ほんのり",
-  "ちょびっと",
-  "ちょこっと",
-  "すこし",
-  "じわじわ",
-  "まあまあ",
-  "そこそこ",
-  "けっこう",
-  "たっぷり",
-  "かなり",
-  "だいぶ",
-  "もりもり",
-  "どっさり",
-  "山盛り",
-  "とてもたくさん",
-  "すごくたくさん",
-  "めちゃくちゃたくさん",
-  "とんでもなくたくさん",
-  "工場長もびっくり",
-  "湖がそわそわ",
-  "森がざわざわ",
-  "空までけむたい",
-  "説明をあきらめるほど",
+  "ほぼおひるね", "ほんのり", "ちょびっと", "ちょこっと", "すこし", "じわじわ",
+  "まあまあ", "そこそこ", "けっこう", "たっぷり", "かなり", "だいぶ",
+  "もりもり", "どっさり", "山盛り", "とてもたくさん", "すごくたくさん",
+  "めちゃくちゃたくさん", "とんでもなくたくさん", "工場長もびっくり",
+  "湖がそわそわ", "森がざわざわ", "空までけむたい", "説明をあきらめるほど",
 ] as const;
 
 const LEVEL_THRESHOLDS = [
@@ -49,9 +30,9 @@ export interface EnergyReading {
   disclaimer: string;
 }
 
-const normalizeModel = (model: string | null): string => (model ?? "unknown").trim().toLowerCase();
+const normalizeModel = (model: string | null | undefined): string => (model ?? "unknown").trim().toLowerCase();
 
-export const estimateModelWeight = (model: string | null): number => {
+export const estimateModelWeight = (model: string | null | undefined): number => {
   const name = normalizeModel(model);
   if (/(nano|tiny|small|flash-lite|mini-fast)/.test(name)) return 0.68;
   if (/(mini|flash|haiku|8b|7b|4b|3b)/.test(name)) return 0.82;
@@ -71,7 +52,7 @@ const levelFor = (value: number, thresholds: readonly number[]): number => {
 
 export const readEnergy = (
   tokens: number,
-  model: string | null,
+  model: string | null | undefined,
   activeSessions: number,
   effort: ReasoningEffort,
 ): EnergyReading => {
@@ -88,8 +69,5 @@ export const readEnergy = (
   };
 };
 
-export const readFactoryGrowthLevel = (totalWeightedTokens: number): number =>
-  levelFor(Math.max(0, totalWeightedTokens), GROWTH_THRESHOLDS);
-
-export const energyLabelAt = (level: number): string =>
-  ENERGY_LABELS[Math.max(0, Math.min(ENERGY_LEVEL_COUNT - 1, Math.floor(level)))];
+export const readFactoryGrowthLevel = (totalWeightedTokens: number): number => levelFor(Math.max(0, totalWeightedTokens), GROWTH_THRESHOLDS);
+export const energyLabelAt = (level: number): string => ENERGY_LABELS[Math.max(0, Math.min(ENERGY_LEVEL_COUNT - 1, Math.floor(level)))];
