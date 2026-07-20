@@ -17,11 +17,11 @@ export interface AgentSnapshot {
   effort: ReasoningEffort;
   tool: string | null;
   sessionTitle: string | null;
-  sessionId: string | null;
-  projectKey: string;
-  projectLabel: string;
-  projectPath: string | null;
-  model: string | null;
+  sessionId?: string | null;
+  projectKey?: string;
+  projectLabel?: string;
+  projectPath?: string | null;
+  model?: string | null;
   updatedAtMs: number;
   source: string;
 }
@@ -58,3 +58,6 @@ export const effortMultiplier = (effort: ReasoningEffort): number => {
       return 2.05;
   }
 };
+
+export const projectKeyOf = (snapshot: AgentSnapshot): string => snapshot.projectKey || "global";
+export const projectLabelOf = (snapshot: AgentSnapshot): string => snapshot.projectLabel || "Global Factory";
