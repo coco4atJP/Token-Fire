@@ -16,24 +16,38 @@ await page.waitForTimeout(6500);
 
 const destructionDebt = await page.locator(".environmental-debt").textContent();
 const destructionEvent = await page.locator(".world-event").textContent();
+const destructionPhase = await page.locator(".phase-hud__title").textContent();
 if (!destructionDebt?.includes("INCINERATED")) throw new Error(`destruction debt missing: ${destructionDebt}`);
 if (!destructionEvent?.trim()) throw new Error("destruction event did not appear");
+if (!destructionPhase?.includes("INCINERATING")) throw new Error(`destruction phase mismatch: ${destructionPhase}`);
 await page.screenshot({ path: "qa-output/01-destruction.png" });
 
 await page.waitForTimeout(18500);
 await page.waitForSelector(".greenwash-stamp.is-visible", { timeout: 7000 });
+const ceremonyPhase = await page.locator(".phase-hud__title").textContent();
+if (!ceremonyPhase?.includes("PROFIT CEREMONY")) throw new Error(`ceremony phase mismatch: ${ceremonyPhase}`);
 await page.screenshot({ path: "qa-output/02-greenwash.png" });
 
 await page.waitForTimeout(6500);
 await page.waitForSelector(".chill-card.is-visible", { timeout: 5000 });
 const chillDebt = await page.locator(".environmental-debt").textContent();
+const chillPhase = await page.locator(".phase-hud__title").textContent();
 if (!chillDebt?.includes("CHILL")) throw new Error(`chill debt missing: ${chillDebt}`);
+if (!chillPhase?.includes("PLANTATION CHILL")) throw new Error(`chill phase mismatch: ${chillPhase}`);
 await page.screenshot({ path: "qa-output/03-chill.png" });
 
 await page.getByRole("button", { name: "INFO" }).click();
 await page.waitForSelector(".reality-check.is-visible");
 await page.screenshot({ path: "qa-output/04-reality-check.png" });
 
-await writeFile("qa-output/result.json", JSON.stringify({ destructionDebt, destructionEvent, chillDebt, consoleErrors }, null, 2));
+await writeFile("qa-output/result.json", JSON.stringify({
+  destructionDebt,
+  destructionEvent,
+  destructionPhase,
+  ceremonyPhase,
+  chillDebt,
+  chillPhase,
+  consoleErrors,
+}, null, 2));
 if (consoleErrors.length > 0) throw new Error(`console errors: ${consoleErrors.join(" | ")}`);
 await browser.close();
