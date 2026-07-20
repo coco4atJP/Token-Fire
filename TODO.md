@@ -12,6 +12,7 @@
 - [ ] GitHub Releasesによる配布フロー
 - [ ] v2 → v3および将来バージョンのセーブデータ移行試験
 - [ ] Tray、自動起動、通知、グローバルショートカットのOS別E2E
+- [ ] Fullscreenアプリ・画面共有・Do Not DisturbとAttention PolicyのOS別連動
 - [ ] 透明ウィンドウ・DPI・マルチモニター・スリープ復帰確認
 - [ ] クラッシュ後のWorld／Replay復元試験
 - [ ] 診断ログとクラッシュレポートの方針決定
