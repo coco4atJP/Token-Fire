@@ -1,13 +1,13 @@
 .shell > .toolbar {
-  z-index: 30;
+  z-index: 30 !important;
 }
 
 .shell > .brand,
 .shell > .status-line {
-  z-index: 8;
+  z-index: 8 !important;
   pointer-events: none;
 }
 
 .control-center {
-  z-index: 40;
+  z-index: 40 !important;
 }
