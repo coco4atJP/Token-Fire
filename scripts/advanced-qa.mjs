@@ -35,9 +35,15 @@ try {
   if (!(await page.locator('[data-setting="attention-mode"]').isVisible())) throw new Error("attention settings missing");
   await page.locator('.control-center [data-action="close"]').click();
 
-  await page.getByRole("button", { name: "QUIET" }).click();
+  const quietButton = page.locator("#quiet-button");
+  if (await page.locator(".shell.is-quiet").count()) {
+    await quietButton.click();
+    if (await page.locator(".shell.is-quiet").count()) throw new Error("scheduled quiet could not be temporarily overridden");
+  }
+  await quietButton.click();
   if (!(await page.locator(".shell.is-quiet").count())) throw new Error("quiet mode class missing");
-  await page.getByRole("button", { name: "WAKE" }).click();
+  await quietButton.click();
+  if (await page.locator(".shell.is-quiet").count()) throw new Error("wake override did not clear quiet state");
 
   await page.waitForTimeout(23500);
   await page.getByRole("button", { name: "LEDGER" }).click();
