@@ -43,10 +43,20 @@ await page.keyboard.press("Escape");
 
 await page.setViewportSize({ width: 380, height: 240 });
 await page.waitForTimeout(250);
+await page.locator(".shell").hover();
 const compactBounds = await page.locator(".phase-hud").boundingBox();
+const toolbarBounds = await page.locator(".toolbar").boundingBox();
 if (!compactBounds || compactBounds.x < 0 || compactBounds.y < 0 || compactBounds.x + compactBounds.width > 380 || compactBounds.y + compactBounds.height > 240) {
   throw new Error(`compact phase HUD overflow: ${JSON.stringify(compactBounds)}`);
 }
+if (!toolbarBounds) throw new Error("compact toolbar bounds missing");
+const overlaps = !(
+  compactBounds.x + compactBounds.width <= toolbarBounds.x ||
+  toolbarBounds.x + toolbarBounds.width <= compactBounds.x ||
+  compactBounds.y + compactBounds.height <= toolbarBounds.y ||
+  toolbarBounds.y + toolbarBounds.height <= compactBounds.y
+);
+if (overlaps) throw new Error(`compact HUD overlaps toolbar: ${JSON.stringify({ compactBounds, toolbarBounds })}`);
 const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
 if (hasHorizontalOverflow) throw new Error("compact viewport has horizontal overflow");
 await page.screenshot({ path: "qa-output/05-compact-chill.png" });
@@ -59,6 +69,7 @@ await writeFile("qa-output/result.json", JSON.stringify({
   chillDebt,
   chillPhase,
   compactBounds,
+  toolbarBounds,
   consoleErrors,
 }, null, 2));
 if (consoleErrors.length > 0) throw new Error(`console errors: ${consoleErrors.join(" | ")}`);
