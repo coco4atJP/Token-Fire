@@ -27,11 +27,17 @@ pub fn apply_record(record: &Value, session: &mut TrackedSession, backfill: bool
         if let Some(effort) = find_effort(payload) {
             session.effort = effort;
         }
+        if let Some(model) = find_model(payload) {
+            session.model = Some(model);
+        }
         return outcome;
     }
 
     if let Some(effort) = find_effort(payload) {
         session.effort = effort;
+    }
+    if let Some(model) = find_model(payload) {
+        session.model = Some(model);
     }
 
     let subtype = payload.get("type").and_then(Value::as_str).unwrap_or_default();
@@ -132,6 +138,14 @@ fn apply_session_meta(payload: &Value, session: &mut TrackedSession) {
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
         .or_else(|| session.originator.clone());
+    session.project_path = ["cwd", "workdir", "working_directory", "project_path"]
+        .iter()
+        .find_map(|key| payload.get(*key).and_then(Value::as_str))
+        .map(ToOwned::to_owned)
+        .or_else(|| session.project_path.clone());
+    if let Some(model) = find_model(payload) {
+        session.model = Some(model);
+    }
 }
 
 fn extract_total_tokens(payload: &Value) -> Option<u64> {
@@ -179,6 +193,24 @@ fn find_effort(value: &Value) -> Option<ReasoningEffort> {
     }
 }
 
+fn find_model(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(map) => {
+            for key in ["model", "model_name", "model_slug", "model_id"] {
+                if let Some(raw) = map.get(key).and_then(Value::as_str) {
+                    let trimmed = raw.trim();
+                    if !trimmed.is_empty() && trimmed.len() <= 160 {
+                        return Some(trimmed.to_string());
+                    }
+                }
+            }
+            map.values().find_map(find_model)
+        }
+        Value::Array(values) => values.iter().find_map(find_model),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,7 +239,7 @@ mod tests {
     fn maps_turn_lifecycle_and_effort() {
         let mut tracked = session();
         apply_record(
-            &json!({"type":"turn_context","payload":{"effort":"high","summary":"implement feature"}}),
+            &json!({"type":"turn_context","payload":{"effort":"high","summary":"implement feature","model":"gpt-5.6-codex"}}),
             &mut tracked,
             false,
         );
@@ -220,6 +252,7 @@ mod tests {
         assert_eq!(tracked.status, AgentStatus::Thinking);
         assert_eq!(tracked.effort, ReasoningEffort::High);
         assert_eq!(tracked.title.as_deref(), Some("implement feature"));
+        assert_eq!(tracked.model.as_deref(), Some("gpt-5.6-codex"));
 
         apply_record(
             &json!({"type":"event_msg","payload":{"type":"task_complete"}}),
@@ -228,6 +261,19 @@ mod tests {
         );
         assert!(!tracked.active);
         assert_eq!(tracked.status, AgentStatus::Completed);
+    }
+
+    #[test]
+    fn reads_project_path_from_session_meta() {
+        let mut tracked = session();
+        apply_record(
+            &json!({"type":"session_meta","payload":{"id":"abc","cwd":"/work/Token-Fire","model":"gpt-5.6"}}),
+            &mut tracked,
+            true,
+        );
+        assert_eq!(tracked.session_id, "abc");
+        assert_eq!(tracked.project_path.as_deref(), Some("/work/Token-Fire"));
+        assert_eq!(tracked.model.as_deref(), Some("gpt-5.6"));
     }
 
     #[test]
