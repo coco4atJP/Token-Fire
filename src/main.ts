@@ -1,10 +1,14 @@
 import "./styles.css";
+import "./experience.css";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppController, type ControllerView, type SourceMode } from "./application/appController";
 import type { AgentSnapshot } from "./domain/agent";
 import { CodexJsonlSource } from "./infrastructure/codexClient";
+import { BrowserWorldPersistence } from "./infrastructure/worldPersistence";
 import { TokenFireAudioDirector } from "./presentation/audioDirector";
+import { ExperienceAudioDirector } from "./presentation/experienceAudio";
+import { TokenFireExperienceOverlay } from "./presentation/experienceOverlay";
 import { PixelRenderer } from "./presentation/pixelRenderer";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -17,6 +21,7 @@ app.innerHTML = `
     <div class="toolbar">
       <button id="source-button" type="button" title="Codex / Demo 切替">DEMO</button>
       <button id="size-button" type="button" title="表示サイズ切替">SIZE</button>
+      <button id="info-button" type="button" title="Reality Check（I）">INFO</button>
       <button id="sound-button" type="button" title="サウンド切替" aria-label="サウンド切替">🔊</button>
       <button id="close-button" type="button" title="閉じる">×</button>
     </div>
@@ -25,14 +30,16 @@ app.innerHTML = `
   </main>
 `;
 
+const shell = document.querySelector<HTMLElement>(".shell");
 const canvas = document.querySelector<HTMLCanvasElement>("#world");
 const sourceButton = document.querySelector<HTMLButtonElement>("#source-button");
 const sizeButton = document.querySelector<HTMLButtonElement>("#size-button");
+const infoButton = document.querySelector<HTMLButtonElement>("#info-button");
 const soundButton = document.querySelector<HTMLButtonElement>("#sound-button");
 const closeButton = document.querySelector<HTMLButtonElement>("#close-button");
 const connection = document.querySelector<HTMLSpanElement>("#connection");
 const connectionDot = document.querySelector<HTMLSpanElement>(".connection-dot");
-if (!canvas || !sourceButton || !sizeButton || !soundButton || !closeButton || !connection || !connectionDot) {
+if (!shell || !canvas || !sourceButton || !sizeButton || !infoButton || !soundButton || !closeButton || !connection || !connectionDot) {
   throw new Error("Token-Fire UI failed to initialize");
 }
 
@@ -61,7 +68,19 @@ const view: ControllerView = {
   },
 };
 
-const audio = new TokenFireAudioDirector();
+const experience = new TokenFireExperienceOverlay(shell);
+const audio = new ExperienceAudioDirector(new TokenFireAudioDirector());
+const controller = new AppController(
+  new CodexJsonlSource(),
+  new PixelRenderer(canvas),
+  audio,
+  experience,
+  new BrowserWorldPersistence(),
+  view,
+);
+controller.start();
+if (!("__TAURI_INTERNALS__" in window)) controller.setMode("demo");
+
 const renderSoundButton = (): void => {
   soundButton.disabled = !audio.supported;
   soundButton.textContent = audio.supported ? (audio.enabled ? "🔊" : "🔇") : "—";
@@ -74,13 +93,6 @@ const renderSoundButton = (): void => {
 };
 renderSoundButton();
 
-const controller = new AppController(new CodexJsonlSource(), new PixelRenderer(canvas), audio, view);
-controller.start();
-if (!("__TAURI_INTERNALS__" in window)) {
-  controller.setMode("demo");
-}
-
-// Web Audio requires a user gesture in many WebViews and browsers.
 const unlockAudio = (): void => {
   void audio.unlock();
 };
@@ -96,6 +108,8 @@ sizeButton.addEventListener("click", async () => {
   await getCurrentWindow().setSize(sizes[currentSize]);
 });
 
+infoButton.addEventListener("click", () => experience.toggleRealityCheck());
+
 soundButton.addEventListener("click", async () => {
   await audio.toggle();
   renderSoundButton();
@@ -106,11 +120,10 @@ closeButton.addEventListener("click", async () => {
   await getCurrentWindow().close();
 });
 
+window.addEventListener("beforeunload", () => controller.stop(), { once: true });
 window.addEventListener("keydown", (event) => {
-  if (event.key.toLowerCase() === "d") {
-    controller.setMode(currentSource === "codex" ? "demo" : "codex");
-  }
-  if (event.key.toLowerCase() === "m" && !event.repeat) {
-    void audio.toggle().then(renderSoundButton);
-  }
+  if (event.key.toLowerCase() === "d") controller.setMode(currentSource === "codex" ? "demo" : "codex");
+  if (event.key.toLowerCase() === "m" && !event.repeat) void audio.toggle().then(renderSoundButton);
+  if (event.key.toLowerCase() === "i" && !event.repeat) experience.toggleRealityCheck();
+  if (event.key === "Escape") experience.toggleRealityCheck(false);
 });
