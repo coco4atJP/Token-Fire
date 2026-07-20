@@ -3,8 +3,17 @@ import type { WorldState } from "../domain/world";
 import type { AudioDirector } from "./audioDirector";
 
 const MIN_GAIN = 0.0001;
-
 type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
+export interface ExperienceAudioPolicy {
+  allowEventSound(): boolean;
+  isQuiet(): boolean;
+}
+
+const DEFAULT_POLICY: ExperienceAudioPolicy = {
+  allowEventSound: () => true,
+  isQuiet: () => false,
+};
 
 export class ExperienceAudioDirector implements AudioDirector {
   private context: AudioContext | null = null;
@@ -14,7 +23,10 @@ export class ExperienceAudioDirector implements AudioDirector {
   private lastEventId = -1;
   private disposed = false;
 
-  constructor(private readonly base: AudioDirector) {}
+  constructor(
+    private readonly base: AudioDirector,
+    private readonly policy: ExperienceAudioPolicy = DEFAULT_POLICY,
+  ) {}
 
   get enabled(): boolean {
     return this.base.enabled;
@@ -51,14 +63,14 @@ export class ExperienceAudioDirector implements AudioDirector {
     this.base.update(world, snapshot);
     if (!this.context || !this.master || !this.chillGain) return;
     const now = this.context.currentTime;
-    const chillTarget = !snapshot.active && this.enabled
-      ? 0.014 + world.chill * 0.028
-      : MIN_GAIN;
+    const quiet = this.policy.isQuiet();
+    const chillTarget = !snapshot.active && this.enabled && !quiet ? 0.014 + world.chill * 0.028 : MIN_GAIN;
     this.chillGain.gain.setTargetAtTime(chillTarget, now, 0.8);
+    this.master.gain.setTargetAtTime(this.enabled ? (quiet ? 0.035 : 0.18) : MIN_GAIN, now, 0.2);
 
     const event = world.activeEvent;
     if (event && event.id !== this.lastEventId) {
-      this.playEvent(event.type, event.magnitude);
+      if (this.policy.allowEventSound()) this.playEvent(event.type, event.magnitude);
       this.lastEventId = event.id;
     }
   }
@@ -121,7 +133,8 @@ export class ExperienceAudioDirector implements AudioDirector {
 
   private syncMaster(): void {
     if (!this.context || !this.master || this.disposed) return;
-    this.master.gain.setTargetAtTime(this.enabled ? 0.18 : MIN_GAIN, this.context.currentTime, 0.05);
+    const target = this.enabled ? (this.policy.isQuiet() ? 0.035 : 0.18) : MIN_GAIN;
+    this.master.gain.setTargetAtTime(target, this.context.currentTime, 0.05);
   }
 
   private playEvent(type: string, magnitude: number): void {
@@ -133,8 +146,12 @@ export class ExperienceAudioDirector implements AudioDirector {
         this.tone(244, 0.07, 0.035, "square");
         break;
       case "factory-expansion":
+      case "factory-milestone":
       case "union-dance":
         [196, 246.94, 293.66].forEach((frequency, index) => this.tone(frequency, 0.2, 0.035, "triangle", undefined, index * 0.08));
+        break;
+      case "approval-bell":
+        [880, 1174.66].forEach((frequency, index) => this.tone(frequency, 0.22, 0.032, "sine", undefined, index * 0.15));
         break;
       case "sunk-cost-error":
         [132, 110, 88].forEach((frequency, index) => this.tone(frequency, 0.2, 0.085, "square", 62, index * 0.13));
@@ -145,6 +162,7 @@ export class ExperienceAudioDirector implements AudioDirector {
         break;
       case "plantation-break":
       case "recovery-rainbow":
+      case "weather-shift":
         [261.63, 329.63, 392].forEach((frequency, index) => this.tone(frequency, 0.5, 0.022, "sine", frequency * 1.005, index * 0.16));
         break;
       default:
@@ -152,14 +170,7 @@ export class ExperienceAudioDirector implements AudioDirector {
     }
   }
 
-  private tone(
-    frequency: number,
-    duration: number,
-    volume: number,
-    type: OscillatorType,
-    endFrequency?: number,
-    delay = 0,
-  ): void {
+  private tone(frequency: number, duration: number, volume: number, type: OscillatorType, endFrequency?: number, delay = 0): void {
     if (!this.context || !this.master || this.disposed) return;
     const start = this.context.currentTime + delay;
     const oscillator = this.context.createOscillator();
