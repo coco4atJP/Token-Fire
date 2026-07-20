@@ -31,9 +31,19 @@ export class SettingsStore extends EventTarget {
     return this.update({ attention: { ...this.settings.attention, quietUntil: Date.now() + Math.max(1, minutes) * 60_000 } });
   }
 
+  wakeFor(minutes: number): AppSettings {
+    return this.update({ attention: { ...this.settings.attention, quietUntil: -(Date.now() + Math.max(1, minutes) * 60_000) } });
+  }
+
+  clearTemporaryAttentionOverride(): AppSettings {
+    return this.update({ attention: { ...this.settings.attention, quietUntil: 0 } });
+  }
+
   isQuiet(now = new Date()): boolean {
     const { attention } = this.settings;
-    if (attention.quietUntil > now.getTime()) return true;
+    const nowMs = now.getTime();
+    if (attention.quietUntil > nowMs) return true;
+    if (attention.quietUntil < -nowMs) return false;
     const hour = now.getHours();
     const start = attention.quietHoursStart;
     const end = attention.quietHoursEnd;
