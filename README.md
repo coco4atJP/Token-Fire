@@ -26,6 +26,8 @@ Token-Fireは環境保護を褒めるアプリではありません。
 - **Tokenが来ないActive時間では工場がアイドリングするだけで、木は燃えない**
 - Token量、Reasoning Effort、並列Agent数で炉の処理速度と破壊規模が変化
 - 稼働中は伐採・延焼・煙・Token精製・湖の冷却水利用
+- タスク終了直前の未処理Tokenも、完了判定前に環境債務と破壊へ精算
+- Abort時は完了扱いにせず、成果ゼロ・排出満額の損失イベントとして記録
 - `shell`、`apply_patch`、Web Search、Compacting、Subagent増加に固有イベント
 - Error時は成果ゼロでも消費済みTokenを環境債務へ記録
 - 完了時は紙吹雪と`SUSTAINABLE*`スタンプでグリーンウォッシュ式典
@@ -55,7 +57,9 @@ Reasoning Effortや並列Agent数が上がると、作業員と煙突が増え�
 
 ### 4. 完了・グリーンウォッシュ
 
-焼却Token数を発表し、苗木一本で相殺したことにして式典を行います。
+焼却Token数を発表し、苗木一本で相殺したことにして式典を行います。タスク終了直前に残った炉内燃料も先に精算されるため、次のタスクへ環境債務を持ち越しません。
+
+AbortやErrorでは式典を行わず、成果ゼロのまま消費済みTokenだけが損失として残ります。
 
 ### 5. Plantation Chill
 
@@ -79,7 +83,7 @@ Reasoning Effortや並列Agent数が上がると、作業員と煙突が増え�
 - `COOLANT ACQUISITION`: 湖を期限未定で借りる
 - `PARALLELIZATION ACHIEVED`: Agent数に合わせ煙突を増設
 - `CONTEXT LANDFILL`: Contextを圧縮処分
-- `ZERO OUTPUT · FULL EMISSIONS`: Errorで成果なし、環境債務だけ残る
+- `ZERO OUTPUT · FULL EMISSIONS`: Error／Abortで成果なし、環境債務だけ残る
 - `SUSTAINABILITY CERTIFIED`: 完了時のグリーンウォッシュ式典
 - `PLANTATION INTERMISSION`: 認知負荷を冷やす植林休止
 - 炉のくしゃみ、Token盗み食い、Subagent利益ダンスなどのレアイベント
@@ -155,11 +159,11 @@ Tauri window + Web Audio + localStorage
 - `src-tauri/src/codex/`: ログ探索、増分読み込み、Token差分化、状態正規化
 - `src/domain/world.ts`: Token燃焼、破壊、植林、Chill、環境債務
 - `src/domain/worldEvent.ts`: 表現に依存しないイベント契約
-- `src/domain/eventDirector.ts`: ツールイベント、レアイベント、式典、イベント集約
-- `src/application/appController.ts`: 入力・世界・表示・音・保存のオーケストレーション
+- `src/domain/eventDirector.ts`: ツールイベント、レアイベント、式典、未処理燃料精算、イベント集約
+- `src/application/appController.ts`: Token登録順序、入力・世界・表示・音・保存のオーケストレーション
 - `src/infrastructure/worldPersistence.ts`: 永続化とオフライン回復
 - `src/presentation/pixelRenderer.ts`: ジオラマとキャラクター描画
-- `src/presentation/experienceOverlay.ts`: 迷言、式典、Chill、Reality Check
+- `src/presentation/experienceOverlay.ts`: フェーズHUD、迷言、式典、Chill、Reality Check
 - `src/presentation/audioDirector.ts`: 基礎環境音と既存SE
 - `src/presentation/experienceAudio.ts`: イベント音とChill和音
 
