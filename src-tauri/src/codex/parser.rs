@@ -57,13 +57,21 @@ pub fn apply_record(record: &Value, session: &mut TrackedSession, backfill: bool
             session.status = AgentStatus::Compacting;
         }
         ("event_msg", "token_count") => {
-            let next_total = extract_total_tokens(payload).unwrap_or(session.total_tokens);
+            let previous_total = session.total_tokens;
+            let previous_generated = session.generated_tokens;
+            let next_total = extract_total_tokens(payload).unwrap_or(previous_total);
             let generated = extract_generated_tokens(payload);
-            if !backfill && next_total != session.total_tokens {
-                outcome.token_delta = generated
-                    .filter(|value| *value > 0)
-                    .unwrap_or_else(|| next_total.saturating_sub(session.total_tokens));
+            let changed = next_total != previous_total
+                || generated.is_some_and(|value| value != previous_generated);
+
+            if !backfill && changed {
+                outcome.token_delta = match generated {
+                    Some(value) if value >= previous_generated => value - previous_generated,
+                    Some(value) => value,
+                    None => next_total.saturating_sub(previous_total),
+                };
             }
+
             session.total_tokens = next_total;
             if let Some(generated) = generated {
                 session.generated_tokens = generated;
@@ -181,6 +189,20 @@ mod tests {
         TrackedSession::new(PathBuf::from("rollout-test.jsonl"), 0, "test".to_string())
     }
 
+    fn usage(total: u64, output: u64, reasoning: u64) -> Value {
+        json!({
+            "type":"event_msg",
+            "payload":{
+                "type":"token_count",
+                "info":{"last_token_usage":{
+                    "total_tokens":total,
+                    "output_tokens":output,
+                    "reasoning_output_tokens":reasoning
+                }}
+            }
+        })
+    }
+
     #[test]
     fn maps_turn_lifecycle_and_effort() {
         let mut tracked = session();
@@ -209,27 +231,35 @@ mod tests {
     }
 
     #[test]
-    fn emits_generated_token_delta_once_per_usage_update() {
+    fn emits_only_incremental_generated_tokens() {
         let mut tracked = session();
         apply_record(
             &json!({"type":"event_msg","payload":{"type":"task_started"}}),
             &mut tracked,
             false,
         );
-        let record = json!({
-            "type":"event_msg",
-            "payload":{
-                "type":"token_count",
-                "info":{"last_token_usage":{
-                    "total_tokens":1200,
-                    "output_tokens":180,
-                    "reasoning_output_tokens":320
-                }}
-            }
-        });
-        let first = apply_record(&record, &mut tracked, false);
-        let duplicate = apply_record(&record, &mut tracked, false);
+
+        let first = apply_record(&usage(1200, 180, 320), &mut tracked, false);
+        let second = apply_record(&usage(1450, 260, 440), &mut tracked, false);
+        let duplicate = apply_record(&usage(1450, 260, 440), &mut tracked, false);
+        let reset_segment = apply_record(&usage(1680, 40, 10), &mut tracked, false);
+
         assert_eq!(first.token_delta, 500);
+        assert_eq!(second.token_delta, 200);
         assert_eq!(duplicate.token_delta, 0);
+        assert_eq!(reset_segment.token_delta, 50);
+    }
+
+    #[test]
+    fn ignores_input_only_total_growth_when_generated_usage_is_unchanged() {
+        let mut tracked = session();
+        apply_record(
+            &json!({"type":"event_msg","payload":{"type":"task_started"}}),
+            &mut tracked,
+            false,
+        );
+        apply_record(&usage(1000, 100, 50), &mut tracked, false);
+        let input_only = apply_record(&usage(5000, 100, 50), &mut tracked, false);
+        assert_eq!(input_only.token_delta, 0);
     }
 }
