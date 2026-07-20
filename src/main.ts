@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./experience.css";
+import "./experiencePhase.css";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppController, type ControllerView, type SourceMode } from "./application/appController";
