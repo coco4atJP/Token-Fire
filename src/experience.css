@@ -1,0 +1,301 @@
+.experience-layer {
+  --chill: 0;
+  --heat: 0;
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.world-event {
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  width: min(70%, 330px);
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 225, 151, 0.28);
+  border-radius: 10px;
+  opacity: 0;
+  color: #fff3d3;
+  background: rgba(29, 22, 20, 0.86);
+  box-shadow: 0 9px 26px rgba(0, 0, 0, 0.32);
+  transform: translate(-50%, -7px) scale(0.97);
+  transition: opacity 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(8px);
+}
+
+.world-event.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.world-event.is-entering {
+  animation: event-impact 420ms cubic-bezier(.2,.9,.2,1);
+}
+
+.world-event[data-tone="chill"] {
+  border-color: rgba(184, 240, 213, 0.4);
+  color: #e9fff1;
+  background: rgba(24, 54, 50, 0.78);
+}
+
+.world-event[data-tone="warning"] {
+  border-color: rgba(255, 122, 91, 0.52);
+  background: rgba(67, 26, 25, 0.88);
+}
+
+.world-event[data-tone="ceremony"] {
+  border-color: rgba(255, 221, 91, 0.58);
+  background: rgba(58, 42, 19, 0.88);
+}
+
+.world-event__title {
+  color: #ffd060;
+  font: 800 9px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .09em;
+}
+
+.world-event__line {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.environmental-debt {
+  position: absolute;
+  right: 10px;
+  bottom: 24px;
+  max-width: 64%;
+  overflow: hidden;
+  color: rgba(255, 238, 203, .68);
+  font: 700 7px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px #151217;
+}
+
+.chill-card {
+  position: absolute;
+  left: 50%;
+  bottom: 29px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid rgba(200, 246, 220, .22);
+  border-radius: 999px;
+  opacity: 0;
+  color: rgba(237, 255, 244, .84);
+  background: rgba(24, 63, 55, .42);
+  transform: translate(-50%, 6px);
+  transition: opacity 500ms ease, transform 500ms ease;
+  backdrop-filter: blur(7px);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.chill-card.is-visible {
+  opacity: var(--chill-opacity, .38);
+  transform: translate(-50%, 0);
+}
+
+.chill-card__pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aee6bc;
+  box-shadow: 0 0 10px rgba(174, 230, 188, .75);
+  animation: chill-breathe 6s ease-in-out infinite;
+}
+
+.ambient-fireflies i {
+  position: absolute;
+  left: var(--x);
+  bottom: var(--y);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  opacity: 0;
+  background: #eaff9a;
+  box-shadow: 0 0 7px #d9ff8e;
+  animation-name: firefly;
+  animation-duration: var(--duration);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: var(--delay);
+}
+
+.experience-layer[data-phase="chill"] .ambient-fireflies i {
+  opacity: var(--firefly-opacity, 0);
+}
+
+.factory-growth {
+  position: absolute;
+  right: 17%;
+  bottom: 25%;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  opacity: .45;
+  transition: opacity 220ms ease;
+}
+
+.factory-growth i {
+  display: block;
+  width: 5px;
+  height: var(--factory-height, 12px);
+  border: 1px solid rgba(25, 20, 19, .7);
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(#71777a, #34373a);
+}
+
+.factory-growth.is-active {
+  opacity: .88;
+}
+
+.ceremony-confetti {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.ceremony-confetti i {
+  position: absolute;
+  top: -12px;
+  left: var(--x);
+  width: 5px;
+  height: 9px;
+  border-radius: 1px;
+  background: #ffd75e;
+}
+
+.ceremony-confetti i:nth-child(3n) {
+  background: #9ee38b;
+}
+
+.ceremony-confetti i:nth-child(3n + 1) {
+  background: #ff8a5b;
+}
+
+.experience-layer.has-ceremony .ceremony-confetti {
+  opacity: .9;
+}
+
+.experience-layer.has-ceremony .ceremony-confetti i {
+  animation: confetti-fall 2.3s cubic-bezier(.2,.7,.25,1) infinite;
+  animation-delay: var(--delay);
+}
+
+.greenwash-stamp {
+  position: absolute;
+  top: 91px;
+  left: 50%;
+  padding: 6px 10px;
+  border: 3px double rgba(195, 255, 152, .9);
+  border-radius: 5px;
+  opacity: 0;
+  color: #caff9f;
+  font: 900 16px/1 ui-monospace, monospace;
+  letter-spacing: .08em;
+  transform: translateX(-50%) rotate(-8deg) scale(1.6);
+  text-shadow: 0 0 12px rgba(170, 255, 130, .6);
+}
+
+.greenwash-stamp.is-visible {
+  animation: stamp-in 5s ease both;
+}
+
+.reality-check {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(82%, 390px);
+  padding: 20px;
+  border: 1px solid rgba(255, 217, 132, .38);
+  border-radius: 14px;
+  opacity: 0;
+  color: #f8eddb;
+  background: rgba(20, 20, 24, .96);
+  box-shadow: 0 18px 50px rgba(0,0,0,.56);
+  transform: translate(-50%, -46%) scale(.96);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+  backdrop-filter: blur(14px);
+}
+
+.reality-check.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
+}
+
+.reality-check h2 {
+  margin: 5px 0 10px;
+  color: #ffd36b;
+  font-size: 16px;
+}
+
+.reality-check p {
+  margin: 0 0 9px;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.reality-check__eyebrow,
+.reality-check__fine {
+  color: rgba(232, 255, 211, .7);
+  font: 800 8px ui-monospace, monospace;
+  letter-spacing: .12em;
+}
+
+.reality-check__close {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  border: 0;
+  color: #f8eddb;
+  background: transparent;
+  cursor: pointer;
+}
+
+@keyframes event-impact {
+  0% { transform: translate(-50%, -7px) scale(.88); filter: brightness(2); }
+  55% { transform: translate(-50%, 1px) scale(1.03); }
+  100% { transform: translate(-50%, 0) scale(1); filter: brightness(1); }
+}
+
+@keyframes chill-breathe {
+  0%, 100% { transform: scale(.72); opacity: .5; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+
+@keyframes firefly {
+  0%, 100% { transform: translate(0, 8px); }
+  35% { transform: translate(8px, -8px); }
+  70% { transform: translate(-5px, -15px); }
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-12px) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateY(230px) rotate(560deg); opacity: 0; }
+}
+
+@keyframes stamp-in {
+  0% { opacity: 0; transform: translateX(-50%) rotate(-8deg) scale(1.7); }
+  12%, 78% { opacity: .96; transform: translateX(-50%) rotate(-8deg) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(-8deg) scale(.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-event,
+  .chill-card,
+  .reality-check { transition: none; }
+  .ambient-fireflies,
+  .ceremony-confetti,
+  .chill-card__pulse { display: none; }
+}

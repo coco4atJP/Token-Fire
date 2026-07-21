@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          set +e
+          npm run build 2>&1 | tee frontend-build.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Check Tauri backend
+        id: cargo-check
+        shell: bash
+        run: |
+          set +e
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee cargo-check.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Test Codex parser
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: |
+            frontend-build.log
+            cargo-check.log
+          if-no-files-found: ignore
