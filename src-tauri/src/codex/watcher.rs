@@ -175,7 +175,7 @@ impl CodexWatcher {
                 continue;
             };
             let outcome = apply_record(&record, session, false);
-            self.pending_token_delta = self.pending_token_delta.saturating_add(outcome.token_delta.min(100_000));
+            self.pending_token_delta = self.pending_token_delta.saturating_add(outcome.token_delta);
         }
         Ok(())
     }
