@@ -85,7 +85,7 @@ WorldState + WorldEvent + EnvironmentalDebt
 Tauri window + Tray + Notification + localStorage
 ```
 
-詳細な境界は`AGENTS.md`を参照してください。
+責務境界と実装ルールは[`AGENTS.md`](AGENTS.md)、採用済みの判断・数値・副作用・見直し条件は[`docs/DECISIONS.md`](docs/DECISIONS.md)を参照してください。
 
 ## 検証
 
