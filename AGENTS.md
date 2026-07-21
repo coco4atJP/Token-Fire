@@ -2,6 +2,8 @@
 
 このリポジトリでは、変更理由と境界を日本語で説明してください。
 
+採用済みの判断、既定値、副作用、見直し条件は[`docs/DECISIONS.md`](docs/DECISIONS.md)を参照してください。挙動や制約の意味を変える変更では、コードだけでなく該当Decisionも更新してください。
+
 ## 最優先の設計原則
 
 **責務分割・境界管理。**
@@ -85,3 +87,4 @@ WorldState + WorldEvent + EnvironmentalDebt
 - カスタムイベントパックは入力を検証し、表現コードを直接実行させない
 - 既存作品のキャラクターや素材を直接使用しない
 - F3では新しい遊びを追加せず、署名・配布・更新・OS別E2Eへ集中する
+- Project Key、保存上限、Replay方式、相対Energy尺度、Quiet既定値、外部通信、Event Pack Schema、Codex監視窓を変更する場合は`docs/DECISIONS.md`を同時更新する
