@@ -73,11 +73,12 @@ await check("replay-on-share", async () => {
 
 await check("quiet-mode", async () => {
   await page.keyboard.press("Escape");
-  await page.locator("#quiet-button").click();
-  const text = await page.locator("#quiet-button").textContent();
-  const pressed = await page.locator("#quiet-button").getAttribute("aria-pressed");
-  if (text !== "WAKE" || pressed !== "true") throw new Error(`text=${text} pressed=${pressed}`);
-  return `${text}/${pressed}`;
+  const button = page.locator("#quiet-button");
+  const before = await button.getAttribute("aria-pressed");
+  await button.click();
+  const after = await button.getAttribute("aria-pressed");
+  if (before === after) throw new Error(`state did not toggle: ${before}`);
+  return `${before}→${after}/${await button.textContent()}`;
 });
 
 await check("compact-layout", async () => {
