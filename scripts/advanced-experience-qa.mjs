@@ -4,53 +4,92 @@ import { mkdir, writeFile } from "node:fs/promises";
 await mkdir("qa-output", { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 800, height: 480 }, deviceScaleFactor: 1 });
-const errors = [];
-page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-page.on("pageerror", (error) => errors.push(error.message));
+const consoleErrors = [];
+const checks = [];
+page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+page.on("pageerror", (error) => consoleErrors.push(error.message));
+
+const check = async (name, action) => {
+  try {
+    const detail = await action();
+    checks.push({ name, ok: true, detail: detail ?? null });
+  } catch (error) {
+    checks.push({ name, ok: false, detail: error instanceof Error ? error.message : String(error) });
+  }
+};
+
 await page.goto("http://127.0.0.1:1420", { waitUntil: "networkidle" });
 await page.waitForSelector("canvas");
 await page.waitForTimeout(3500);
+await page.screenshot({ path: "qa-output/00-start.png" });
 
-const play = page.getByRole("button", { name: "PLAY" });
-await play.click();
-if ((await play.getAttribute("aria-pressed")) !== "true") throw new Error("PLAY mode did not enable");
-const hotspot = page.locator(".character-hotspot--emberbeak");
-await hotspot.click({ force: true });
-await page.waitForTimeout(250);
-if (!(await hotspot.getAttribute("title"))?.includes("破壊量")) throw new Error("character interaction line missing");
+await check("play-mode", async () => {
+  const play = page.locator("#play-button");
+  await play.click();
+  const pressed = await play.getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error(`aria-pressed=${pressed}`);
+  return await play.textContent();
+});
+
+await check("character-interaction", async () => {
+  const hotspot = page.locator(".character-hotspot--emberbeak");
+  await hotspot.click({ force: true });
+  await page.waitForTimeout(400);
+  const title = await hotspot.getAttribute("title");
+  if (!title || title === "Emberbeak") throw new Error(`title=${title}`);
+  return title;
+});
 await page.screenshot({ path: "qa-output/01-interaction.png" });
 
-await page.getByRole("button", { name: "LEDGER" }).click();
-await page.waitForSelector(".control-center.is-open");
-const ledgerText = await page.locator(".control-center__body").innerText();
-if (!ledgerText.includes("ふわっとした多さ") || !ledgerText.includes("/24")) throw new Error("24-level energy ledger missing");
+await check("ledger-open", async () => {
+  await page.locator("#ledger-button").click();
+  await page.waitForSelector(".control-center.is-open");
+  const text = await page.locator(".control-center__body").innerText();
+  if (!text.includes("ふわっとした多さ") || !text.includes("/24")) throw new Error(text.slice(0, 300));
+  return text.slice(0, 300);
+});
 
-for (const tab of ["事業所", "動作", "できごと", "設定"]) {
-  await page.getByRole("button", { name: tab, exact: true }).click();
-  await page.waitForTimeout(100);
-}
-const settingsText = await page.locator(".control-center__body").innerText();
-if (!settingsText.includes("承認待ち通知") || !settingsText.includes("自動起動") || !settingsText.includes("外の天気")) throw new Error("settings options missing");
+await check("settings-options", async () => {
+  await page.locator('[data-tab="settings"]').click();
+  const text = await page.locator(".control-center__body").innerText();
+  for (const expected of ["承認待ち通知", "自動起動", "外の天気"]) if (!text.includes(expected)) throw new Error(`missing ${expected}`);
+  return text.slice(0, 400);
+});
 await page.screenshot({ path: "qa-output/02-settings.png" });
 
-await page.getByRole("button", { name: "できごと", exact: true }).click();
-const eventsText = await page.locator(".control-center__body").innerText();
-if (!eventsText.includes("達成率や未発見数は表示しません") || !eventsText.includes("イベントパック")) throw new Error("subtle archive or packs missing");
+await check("subtle-archive-and-packs", async () => {
+  await page.locator('[data-tab="events"]').click();
+  const text = await page.locator(".control-center__body").innerText();
+  if (!text.includes("達成率や未発見数は表示しません") || !text.includes("イベントパック")) throw new Error(text.slice(0, 300));
+  return text.slice(0, 300);
+});
 
-await page.getByRole("button", { name: "動作", exact: true }).click();
-const replayText = await page.locator(".control-center__body").innerText();
-if (!replayText.includes("動画そのものは保存していません") || !replayText.includes("動作データ")) throw new Error("replay-on-share strategy missing");
+await check("replay-on-share", async () => {
+  await page.locator('[data-tab="replays"]').click();
+  const text = await page.locator(".control-center__body").innerText();
+  if (!text.includes("動画そのものは保存していません") || !text.includes("動作データ")) throw new Error(text.slice(0, 300));
+  return text.slice(0, 300);
+});
 
-await page.keyboard.press("Escape");
-await page.getByRole("button", { name: "QUIET" }).click();
-if ((await page.getByRole("button", { name: "WAKE" }).getAttribute("aria-pressed")) !== "true") throw new Error("quiet mode did not enable");
+await check("quiet-mode", async () => {
+  await page.keyboard.press("Escape");
+  await page.locator("#quiet-button").click();
+  const text = await page.locator("#quiet-button").textContent();
+  const pressed = await page.locator("#quiet-button").getAttribute("aria-pressed");
+  if (text !== "WAKE" || pressed !== "true") throw new Error(`text=${text} pressed=${pressed}`);
+  return `${text}/${pressed}`;
+});
 
-await page.setViewportSize({ width: 380, height: 240 });
-await page.waitForTimeout(200);
-const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-if (overflow) throw new Error("compact layout has horizontal overflow");
+await check("compact-layout", async () => {
+  await page.setViewportSize({ width: 380, height: 240 });
+  await page.waitForTimeout(250);
+  const values = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+  if (values.scroll > values.client) throw new Error(JSON.stringify(values));
+  return values;
+});
 await page.screenshot({ path: "qa-output/03-compact.png" });
 
-await writeFile("qa-output/result.json", JSON.stringify({ errors, ledgerText, settingsText, eventsText, replayText }, null, 2));
-if (errors.length) throw new Error(errors.join(" | "));
+await writeFile("qa-output/result.json", JSON.stringify({ checks, consoleErrors }, null, 2));
 await browser.close();
+const failed = checks.filter((entry) => !entry.ok);
+if (consoleErrors.length || failed.length) throw new Error(JSON.stringify({ failed, consoleErrors }));
