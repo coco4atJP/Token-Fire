@@ -1,7 +1,8 @@
 import { IDLE_SNAPSHOT, projectKeyOf, projectLabelOf, type AgentSnapshot } from "../domain/agent";
 import { CharacterDirector } from "../domain/characterDirector";
 import { EventDirector } from "../domain/eventDirector";
-import { addTokenDelta, enqueueWorldEvent, updateWorld, type WorldState } from "../domain/world";
+import { enqueueTokenFuel } from "../domain/tokenFuel";
+import { enqueueWorldEvent, updateWorld, type WorldState } from "../domain/world";
 import type { AgentSource } from "../infrastructure/codexClient";
 import { DemoAgentSource } from "../infrastructure/demoSource";
 import type { ProjectMeta, WorldPersistence } from "../infrastructure/worldPersistence";
@@ -143,7 +144,7 @@ export class AppController {
       const next = await this.activeSource.poll();
       const nextProjectKey = projectKeyOf(next);
       if (nextProjectKey !== this.world.projectKey) this.switchProject(next);
-      addTokenDelta(this.world, next.tokenDelta);
+      enqueueTokenFuel(this.world, next.tokenDelta);
       this.replay.onSnapshot(this.world, this.snapshot, next);
       this.attention.onSnapshot(this.world, this.snapshot, next);
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
