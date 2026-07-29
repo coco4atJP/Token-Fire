@@ -88,6 +88,7 @@ export interface AttentionSettings {
 
 export interface AppSettings {
   autostart: boolean;
+  playIntroSeen: boolean;
   weather: WeatherSettings;
   attention: AttentionSettings;
   enabledEventPacks: string[];
@@ -95,6 +96,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autostart: false,
+  playIntroSeen: false,
   weather: {
     enabled: false,
     latitude: 35.4437,

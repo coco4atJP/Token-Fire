@@ -1,7 +1,7 @@
 # Token-Fire 🔥🌲
 
 **AIがTokenを燃やすたび、可愛い作業員たちが嬉々として環境を破壊する。**  
-燃やしていない間だけ、雨・植林・静かな音で工場と人間の認知負荷を冷却する、Tauri製デスクトップ・ジオラマです。
+燃やしていない間だけ、雨・植林・静かな音で工場と人間の認知負荷を冷却する、Tauri + TypeScript + PixiJS製デスクトップ・パペットシアターです。
 
 > 「環境破壊はたのしいZOY!!」という悪趣味でコミカルな勢いに着想を得た、非公式・非提携のオリジナル作品です。既存作品のキャラクターや素材は使用していません。
 
@@ -33,6 +33,7 @@ Token-Fireは環境保護を褒めるアプリではありません。
 - System Tray、自動起動、単一起動、グローバル表示ショートカット
 - 条件付きJSON Event Pack
 - Plantation Chill、Web Audio、Compact / Diorama / Wide
+- PixiJSの舞台レイヤー、紙人形の吊り糸、ボックスシアターの幕と木枠
 
 ## 重要な挙動
 
@@ -64,7 +65,7 @@ npm install
 npm run tauri dev
 ```
 
-必要環境はNode.js 20+、Rust stable、Tauri 2のOS別ビルド要件、Codex DesktopまたはCodex CLIです。
+必要環境はNode.js 22.12+、Rust stable、Tauri 2のOS別ビルド要件、Codex DesktopまたはCodex CLIです。
 
 ## 設計
 
@@ -77,7 +78,7 @@ Project World + Token Combustion
   ↓
 WorldState + WorldEvent + EnvironmentalDebt
   ├─ CharacterDirector / EventDirector / EventPackRegistry
-  ├─ PixelRenderer / ExperienceOverlay / InteractionController
+  ├─ WorldRenderer port → PixiRenderer / ExperienceOverlay / InteractionController
   ├─ AudioDirector / AttentionDirector
   ├─ ReplayRecorder / ReplayExporter
   └─ ProjectWorldPersistence
@@ -90,6 +91,7 @@ Tauri window + Tray + Notification + localStorage
 ## 検証
 
 - TypeScript/Vite本番ビルド
+- PixiJS WebGL描画とReplay書き出し
 - Rust/Tauri `cargo check`
 - Codex Parserテスト
 - PLAYでのキャラクター反応

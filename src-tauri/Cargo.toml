@@ -1,27 +1,27 @@
 [package]
 name = "token-fire"
 version = "0.1.0"
-description = "A pixel diorama that visualizes Codex activity as destruction and recovery"
+description = "A puppet theatre that visualizes Codex activity as destruction and recovery"
 authors = ["coco4atJP"]
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "token_fire_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-window-state = "2"
-tauri-plugin-autostart = "2"
-tauri-plugin-global-shortcut = "2"
-tauri-plugin-notification = "2"
-tauri-plugin-single-instance = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-dirs = "6"
+tauri = { version = "2.11.5", features = ["tray-icon"] }
+tauri-plugin-window-state = "2.4.1"
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-single-instance = "2.4.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+dirs = "6.0.0"
 
 [profile.release]
 panic = "abort"

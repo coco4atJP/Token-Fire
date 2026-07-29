@@ -147,7 +147,7 @@ export class EventDirector {
     const roll = this.random();
     if (roll > 0.985) return "legendary-zoy";
     if (snapshot.activeSessions >= 3 && roll > 0.55) return "union-dance";
-    if (roll > 0.42) return "cinder-feast";
+    if (roll > 0.42) return "sumi-feast";
     return "forge-sneeze";
   }
 

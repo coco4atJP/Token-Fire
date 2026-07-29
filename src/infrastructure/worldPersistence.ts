@@ -43,7 +43,7 @@ interface PersistedWorld {
   energyLevel: number;
   rngState: number;
   debt: WorldState["debt"];
-  characters: Partial<Record<CharacterId, Pick<WorldState["characters"][CharacterId], "act" | "mood" | "interactions">>>;
+  characters: Record<string, Pick<WorldState["characters"][CharacterId], "act" | "mood" | "interactions"> | undefined>;
   environment: EnvironmentContext;
   history: HistoricalMoment[];
   discoveries: Record<string, EventDiscovery>;
@@ -63,6 +63,31 @@ export interface WorldPersistence {
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+const LEGACY_CHARACTER_IDS: Record<string, CharacterId> = {
+  emberbeak: "hinoko",
+  spriglet: "mebuki",
+  drizzle: "fuwame",
+  cinder: "sumi",
+  vapo: "mizumo",
+  axle: "kururi",
+};
+
+const canonicalCharacterId = (value: string): CharacterId | null => {
+  if (value in LEGACY_CHARACTER_IDS) return LEGACY_CHARACTER_IDS[value];
+  return value === "hinoko" || value === "mebuki" || value === "fuwame" || value === "sumi" || value === "mizumo" || value === "kururi"
+    ? value
+    : null;
+};
+
+const canonicalEventName = (value: string): string => {
+  if (value === "cinder-feast") return "sumi-feast";
+  if (value.startsWith("interaction:")) {
+    const id = canonicalCharacterId(value.slice("interaction:".length));
+    return id ? `interaction:${id}` : value;
+  }
+  return value;
+};
 
 export class BrowserWorldPersistence implements WorldPersistence {
   private database: PersistedDatabase;
@@ -101,11 +126,30 @@ export class BrowserWorldPersistence implements WorldPersistence {
     world.rngState = persisted.rngState >>> 0;
     world.debt = { ...world.debt, ...persisted.debt };
     world.environment = { ...world.environment, ...persisted.environment };
-    world.history = Array.isArray(persisted.history) ? persisted.history.slice(0, 160) : [];
-    world.discoveries = persisted.discoveries && typeof persisted.discoveries === "object" ? persisted.discoveries : {};
-    world.replays = Array.isArray(persisted.replays) ? persisted.replays.slice(0, 24) : [];
+    world.history = Array.isArray(persisted.history)
+      ? persisted.history.slice(0, 160).map((moment) => ({
+          ...moment,
+          eventType: moment.eventType ? canonicalEventName(moment.eventType) as HistoricalMoment["eventType"] : undefined,
+        }))
+      : [];
+    world.discoveries = persisted.discoveries && typeof persisted.discoveries === "object"
+      ? Object.fromEntries(Object.entries(persisted.discoveries).map(([key, discovery]) => {
+          const canonicalKey = canonicalEventName(key);
+          return [canonicalKey, { ...discovery, eventType: canonicalEventName(discovery.eventType) }];
+        }))
+      : {};
+    world.replays = Array.isArray(persisted.replays)
+      ? persisted.replays.slice(0, 24).map((replay) => ({
+          ...replay,
+          frames: replay.frames.map((frame) => ({
+            ...frame,
+            event: frame.event ? canonicalEventName(frame.event) : null,
+          })),
+        }))
+      : [];
     for (const [id, state] of Object.entries(persisted.characters ?? {})) {
-      const character = world.characters[id as CharacterId];
+      const canonicalId = canonicalCharacterId(id);
+      const character = canonicalId ? world.characters[canonicalId] : undefined;
       if (!character || !state) continue;
       character.act = state.act ?? character.act;
       character.mood = state.mood ?? character.mood;

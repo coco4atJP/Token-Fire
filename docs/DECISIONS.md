@@ -90,6 +90,8 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - 保存失敗や容量不足でもライブシミュレーションは継続する
 - データベース全体をJSONとして手動エクスポートできる
 - v2の単一世界は`Legacy Factory`へ移行する
+- v3の旧キャラクターID、`cinder-feast`、履歴、Discovery、Replay内イベント名はロード時に正史名へ移行し、次回保存で正規化する
+- `token-fire.worlds.v3`と`token-fire.settings.v1`は正史化やPLAY案内既読の追加では変更しない
 - 本格的なファイル保存、暗号化、バックアップ、復元保証はF3で検証する
 
 ## D-006 — 記録量には静かな上限を設ける
@@ -110,7 +112,7 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 
 **状態:** Accepted
 
-タスク中は約1秒ごとに世界の要約frameを記録し、動画ファイルは常時保存しない。共有操作時にCanvasで再構成し、WebMを生成する。
+タスク中は約1秒ごとに世界の要約frameを記録し、動画ファイルは常時保存しない。共有操作時にPixiJSで再構成し、Canvasの`captureStream`からWebMを生成する。
 
 ### 現在の出力
 
@@ -140,13 +142,16 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 
 **状態:** Accepted
 
-通常時はデスクトップ操作を奪わない。`PLAY`中だけDOMのInteraction Layerを有効化する。
+通常時はデスクトップ操作を奪わない。`PLAY`中だけ舞台上のDOM Interaction Layerを有効化する。
 
 ### 現在の操作
 
 - キャラクタークリック: 固有反応
-- Drizzle Puffドラッグ: 雨の配送位置を横方向へ変更
-- 森側の地面クリック: 近い木を手動焼却し、`manualDamage`へ記録
+- Fuwameドラッグ／左右矢印: 雨の配送位置を横方向へ変更
+- 森側の専用Hotspotをクリック／キーボード操作: 近い木を手動焼却し、`manualDamage`へ記録
+- 初回PLAYだけ操作対象と`DONE / Escape`を舞台口上で案内し、劇場外の操作卓から再表示できる
+
+PixiとDOM Interaction Layerは`StageViewport`の320×192 contain投影を共有する。つけ帳、設定、Soto Noteを開いている間は世界シミュレーションを継続するが、直接操作を終了する。
 
 ### 非採用
 
@@ -194,6 +199,13 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 Countdown速度と次回Timerの両方へMode倍率を反映しているため、Calm／Chaosの差は意図的に大きい。初回だけは共通Timer 26をMode倍率で消費する。
 
 承認待ちなど重要な状態は通常イベントより優先するが、Quietと通知頻度制限を通す。深夜Quietは一時的にWAKEできる。
+
+### Presentation Motion Policy
+
+- `prefers-reduced-motion`またはQuietではPixiの揺れを停止し、粒子と明滅を抑える
+- Calmでは揺れを縮小し、非重要粒子とイベント密度を抑える
+- Reduce FlashではErrorを含む点滅を固定表示へ変える
+- これらはRendererの表現量だけを変え、Token会計、`WorldEvent`発生条件、森林状態の更新を変えない
 
 ## D-012 — 外気天気は任意の手入力座標だけを使う
 
@@ -313,6 +325,47 @@ Tokenの会計値と、画面へ同時に出す表現量を分離する。Token�
 
 Chillな自然回復と「使った痕跡が残る」長期世界を両立するため。
 
+## D-020 — 実時間描画とReplay再構成はPixiJSへ統一する
+
+**状態:** Accepted
+
+実時間の世界表示と共有用Replay再構成はCanvas 2D APIを直接使わず、PixiJS 8の
+`Application`、`Graphics`、`Sprite`、`Text`で実装する。Tauri、TypeScript、
+PixiJSを表示スタックの標準とする。
+
+### 境界
+
+- `AppController`は`WorldRenderer` portだけを知り、PixiJSを直接参照しない
+- PixiJS、DOM Canvas、Textureのロードと破棄は`presentation`で完結する
+- `WorldState`と`WorldEvent`は描画技術を知らない
+- 生成PNGが欠けた場合は`SpriteAtlas`が`sprites.svg`の同義frameへ縮退する
+- 舞台用の追加画像候補は`public/assets/token-fire/asset-requests.json`へ記録し、未生成でも`Graphics`で動作する
+
+### 外観
+
+正式な基本形は「木製の箱舞台の中にある、正面寄り三分の二視点の浅いジオラマ」とする。
+箱舞台はカメラと外枠、交換式背景紙は森・工場・庭園、浅いジオラマは接地・照明・奥行きを担う。
+地上キャラクターと可動小物は下からの操作棒、Fuwame・雨・空中物だけは吊り糸で扱う。
+操業と回復の背景紙、舞台床、幕、木枠は生成Assetを使用し、欠損時だけ同義の`Graphics`へ縮退する。
+キャラクターの可愛さと環境破壊の非情さは従来どおり`WorldEvent`の意味から受け取る。
+
+### 既定値と副作用
+
+- PixiJS: 8.19.0
+- Renderer preference: WebGL
+- Device Pixel Ratio上限: 2
+- 論理舞台: 320×192
+- Window下限: 380×240。自由リサイズは維持し、自動拡大しない
+- Pixi内の状態札を唯一の視覚HUDとし、イベント中は同じ札の内容を差し替える
+- DOMは単一の読み上げ領域と操作面を担当し、視覚HUDを重複させない
+- Replay: 960×540、30fps、VP9 → VP8 → WebM、失敗時はJSON
+- Node.js下限: 22.12
+- TypeScript: 7.0.2、Vite: 8.1.5、Rust edition: 2024
+
+Canvas 2D直接描画よりbundleは大きくなるが、Sprite再利用と描画レイヤーの責務が
+明確になる。PixiJSのmajor更新、WebGLを使えない対象OSの追加、DPR上限、
+Replay rendererの変更時に見直す。
+
 ---
 
 ## 変更時のチェック
@@ -328,3 +381,4 @@ Chillな自然回復と「使った痕跡が残る」長期世界を両立する
 - Codex JSONLの監視時間窓・容量上限
 - Realtime Queue、Particle、Backpressure
 - Tray、終了、自動起動、Shortcut
+- PixiJS major、Renderer preference、DPR上限、Replay描画方式

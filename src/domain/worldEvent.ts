@@ -7,7 +7,7 @@ export type BuiltinWorldEventType =
   | "sunk-cost-error"
   | "greenwash-ceremony"
   | "forge-sneeze"
-  | "cinder-feast"
+  | "sumi-feast"
   | "union-dance"
   | "plantation-break"
   | "recovery-rainbow"
@@ -49,7 +49,7 @@ const COPY: Record<BuiltinWorldEventType, EventCopy> = {
   "sunk-cost-error": { tone: "warning", title: "ZERO OUTPUT · FULL EMISSIONS", line: "成果はなくても消費電力は返ってこない！", duration: 4.2 },
   "greenwash-ceremony": { tone: "ceremony", title: "SUSTAINABILITY CERTIFIED", line: "煙突を緑に塗りました。環境対応完了！", duration: 5.2 },
   "forge-sneeze": { tone: "destruction", title: "FORGE SNEEZE", line: "炉がくしゃみした。森が三本ほど消えた。", duration: 3.2 },
-  "cinder-feast": { tone: "destruction", title: "UNAUTHORIZED TOKEN SNACK", line: "Cinderは燃料を味見した。業務上必要だった。", duration: 3.2 },
+  "sumi-feast": { tone: "destruction", title: "UNAUTHORIZED TOKEN SNACK", line: "Sumiは燃料を味見した。業務上必要だった。", duration: 3.2 },
   "union-dance": { tone: "ceremony", title: "SUBAGENT PROFIT DANCE", line: "作業員が増えたので、まず祝います。", duration: 4 },
   "plantation-break": { tone: "chill", title: "PLANTATION INTERMISSION", line: "ひと呼吸。次の伐採分を静かに育てています。", duration: 5.5 },
   "recovery-rainbow": { tone: "chill", title: "COOLANT SKYLINE", line: "雨上がり。工場も脳も、少しだけ冷却中。", duration: 5.5 },

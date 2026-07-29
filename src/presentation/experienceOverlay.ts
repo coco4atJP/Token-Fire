@@ -1,175 +1,98 @@
 import type { AgentSnapshot } from "../domain/agent";
-import { CHARACTER_IDS } from "../domain/character";
-import { getWorldMetrics, type WorldState } from "../domain/world";
-import { weatherLabel } from "../application/environmentDirector";
+import { CHARACTER_IDS, CHARACTER_LABELS } from "../domain/character";
+import type { WorldState } from "../domain/world";
 
 export interface ExperiencePresenter {
   update(world: WorldState, snapshot: AgentSnapshot): void;
   toggleRealityCheck(force?: boolean): void;
 }
 
-const formatNumber = (value: number): string => Math.floor(value).toLocaleString("ja-JP");
-const COMBUSTION_EVENTS = new Set(["token-burn", "tree-harvest", "coolant-drain", "forge-sneeze", "cinder-feast"]);
-
+/**
+ * 舞台の視覚情報はPixiへ一本化し、DOMは読み上げとSoto Noteの操作だけを担当する。
+ */
 export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly root: HTMLDivElement;
-  private readonly phaseHud: HTMLDivElement;
-  private readonly phaseTitle: HTMLDivElement;
-  private readonly phaseDetail: HTMLDivElement;
-  private readonly eventCard: HTMLDivElement;
-  private readonly eventTitle: HTMLDivElement;
-  private readonly eventLine: HTMLDivElement;
-  private readonly debtStrip: HTMLDivElement;
-  private readonly chillCard: HTMLDivElement;
-  private readonly stamp: HTMLDivElement;
-  private readonly factory: HTMLDivElement;
-  private readonly characterBubble: HTMLDivElement;
-  private readonly realityDialog: HTMLDivElement;
-  private lastEventId = -1;
+  private readonly announcer: HTMLDivElement;
+  private readonly realityDialog: HTMLElement;
+  private readonly realityHeading: HTMLHeadingElement;
+  private readonly modalBackground: HTMLElement[];
+  private lastAnnouncement = "";
+  private lastFocused: HTMLElement | null = null;
   private realityVisible = false;
 
-  constructor(host: HTMLElement) {
+  constructor(
+    host: HTMLElement,
+    private readonly onModalChange: (open: boolean) => void = () => {},
+  ) {
     this.root = document.createElement("div");
     this.root.className = "experience-layer";
     this.root.innerHTML = `
-      <div class="world-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
-      <section class="phase-hud" aria-live="polite"><div class="phase-hud__title"></div><div class="phase-hud__detail"></div></section>
-      <div class="factory-growth" aria-hidden="true"></div>
-      <div class="ambient-fireflies" aria-hidden="true">
-        ${Array.from({ length: 9 }, (_, index) => {
-          const x = (index * 37 + 13) % 92;
-          const y = 14 + (index % 4) * 9;
-          return `<i style="--x:${x}%;--y:${y}%;--duration:${7 + index * 0.7}s;--delay:${index * -0.9}s"></i>`;
-        }).join("")}
-      </div>
-      <div class="ceremony-confetti" aria-hidden="true">${Array.from({ length: 12 }, (_, index) => `<i style="--x:${8 + index * 7.5}%;--delay:${index * -0.08}s"></i>`).join("")}</div>
-      <section class="world-event" aria-live="polite"><div class="world-event__title"></div><div class="world-event__line"></div></section>
-      <div class="character-bubble" aria-live="polite"></div>
-      <div class="greenwash-stamp" aria-hidden="true">SUSTAINABLE*</div>
-      <div class="chill-card"><span class="chill-card__pulse"></span><span class="chill-card__copy">工場と脳を冷却しています</span></div>
-      <div class="environmental-debt"></div>
-      <section class="reality-check" role="dialog" aria-modal="true" aria-label="Reality Check">
-        <button class="reality-check__close" type="button" aria-label="閉じる">×</button>
-        <div class="reality-check__eyebrow">REALITY CHECK</div>
-        <h2>これは風刺的な破壊ジオラマです。</h2>
-        <p>Token-Fireの数値は実測CO₂や水使用量ではありません。Token量・モデル名・Reasoning Effort・並列度から「ちょびっと」「すごくたくさん」など24段階の相対表現を作っています。</p>
+      <div class="sr-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+      <section class="reality-check" role="dialog" aria-modal="true" aria-labelledby="reality-check-title" hidden inert>
+        <button class="reality-check__close" type="button" aria-label="Soto Noteを閉じる">×</button>
+        <div class="reality-check__eyebrow">SOTO NOTE · REALITY CHECK</div>
+        <h2 id="reality-check-title" tabindex="-1">これは風刺的な破壊パペット劇です。</h2>
+        <p>Token-Fireの数値は実測CO₂や水使用量ではありません。Token量・モデル名・Reasoning Effort・並列度から、24段階のふわっとした相対表現を作っています。</p>
         <p>AI推論が実際に計算資源・電力・冷却を必要とする現実を、正確そうな偽数値を出さずに笑って眺めるための表現です。</p>
         <p class="reality-check__fine">キャラクターは可愛く、事業判断は非情です。</p>
       </section>
     `;
+    this.modalBackground = Array.from(host.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
     host.append(this.root);
-
-    this.phaseHud = this.requireElement(".phase-hud");
-    this.phaseTitle = this.requireElement(".phase-hud__title");
-    this.phaseDetail = this.requireElement(".phase-hud__detail");
-    this.eventCard = this.requireElement(".world-event");
-    this.eventTitle = this.requireElement(".world-event__title");
-    this.eventLine = this.requireElement(".world-event__line");
-    this.debtStrip = this.requireElement(".environmental-debt");
-    this.chillCard = this.requireElement(".chill-card");
-    this.stamp = this.requireElement(".greenwash-stamp");
-    this.factory = this.requireElement(".factory-growth");
-    this.characterBubble = this.requireElement(".character-bubble");
+    this.announcer = this.requireElement(".sr-announcer");
     this.realityDialog = this.requireElement(".reality-check");
+    setInert(this.realityDialog, true);
+    this.realityHeading = this.requireElement("#reality-check-title");
     this.requireElement<HTMLButtonElement>(".reality-check__close").addEventListener("click", () => this.toggleRealityCheck(false));
+    this.realityDialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") this.toggleRealityCheck(false);
+    });
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
-    const metrics = getWorldMetrics(world);
     const event = world.activeEvent;
-    const ceremony = event?.type === "greenwash-ceremony" || event?.type === "union-dance" || event?.type === "legendary-zoy";
-    const activelyBurning = snapshot.active && (world.combustionPulse > 0.04 || world.tokenQueue > 1 || (event !== null && COMBUSTION_EVENTS.has(event.type)));
-
-    this.root.dataset.phase = snapshot.active ? "destruction" : "chill";
-    this.root.dataset.time = world.environment.timePhase;
-    this.root.dataset.weather = world.environment.weather;
-    this.root.dataset.growth = String(world.growthLevel);
-    this.root.style.setProperty("--chill", world.chill.toFixed(3));
-    this.root.style.setProperty("--chill-opacity", (0.38 + world.chill * 0.62).toFixed(3));
-    this.root.style.setProperty("--firefly-opacity", (world.chill * 0.75).toFixed(3));
-    this.root.style.setProperty("--factory-height", `${12 + world.heat * 16}px`);
-    this.root.style.setProperty("--growth", (world.growthLevel / 23).toFixed(3));
-
-    const model = snapshot.model ?? world.model ?? "model unknown";
-    if (snapshot.status === "error") {
-      this.phaseHud.dataset.phase = "error";
-      this.phaseTitle.textContent = "TOKEN FORGE · SUNK COST";
-      this.phaseDetail.textContent = `成果ゼロ · 焼却済み ${formatNumber(metrics.wastedTokens)} TOK`;
-    } else if (event?.type === "greenwash-ceremony") {
-      this.phaseHud.dataset.phase = "ceremony";
-      this.phaseTitle.textContent = "PROFIT CEREMONY · GREENWASHING";
-      this.phaseDetail.textContent = `焼却 ${formatNumber(event.magnitude)} TOK · 苗木一本で相殺済み`;
-    } else if (snapshot.active) {
-      this.phaseHud.dataset.phase = activelyBurning ? "burning" : "idling";
-      this.phaseTitle.textContent = activelyBurning ? "TOKEN FORGE · INCINERATING" : "TOKEN FORGE · AWAITING FUEL";
-      this.phaseDetail.textContent = activelyBurning
-        ? `${metrics.energyLevel + 1}/24 · ${metrics.energyLabel} · ${model}`
-        : `${snapshot.effort.toUpperCase()} · 工場はアイドリング中 · 森林被害なし`;
-    } else {
-      this.phaseHud.dataset.phase = "chill";
-      this.phaseTitle.textContent = "PLANTATION CHILL · REFORESTING";
-      const temperature = world.environment.temperatureC === null ? "" : ` · ${Math.round(world.environment.temperatureC)}℃`;
-      this.phaseDetail.textContent = `CHILL ${metrics.chillPercent}% · ${weatherLabel(world.environment.weather)}${temperature} · WATER ${metrics.waterPercent}%`;
-    }
-
-    if (event) {
-      this.root.dataset.event = event.type;
-      this.eventCard.classList.add("is-visible");
-      this.eventCard.dataset.tone = event.tone;
-      this.eventTitle.textContent = event.title;
-      this.eventLine.textContent = event.line;
-      if (event.id !== this.lastEventId) {
-        this.eventCard.classList.remove("is-entering");
-        void this.eventCard.offsetWidth;
-        this.eventCard.classList.add("is-entering");
-      }
-      this.stamp.classList.toggle("is-visible", event.type === "greenwash-ceremony");
-      this.root.classList.toggle("has-ceremony", ceremony);
-      this.lastEventId = event.id;
-    } else {
-      delete this.root.dataset.event;
-      this.eventCard.classList.remove("is-visible", "is-entering");
-      this.stamp.classList.remove("is-visible");
-      this.root.classList.remove("has-ceremony");
-    }
-
     const speaker = CHARACTER_IDS
       .map((id) => world.characters[id])
       .filter((state) => state.line && state.until > world.elapsed)
-      .sort((a, b) => b.until - a.until)[0];
-    if (speaker?.line) {
-      this.characterBubble.dataset.character = speaker.id;
-      this.characterBubble.textContent = speaker.line;
-      this.characterBubble.classList.add("is-visible");
-    } else {
-      this.characterBubble.classList.remove("is-visible");
+      .sort((left, right) => right.until - left.until)[0];
+    const important = snapshot.tool === "approval_review" || snapshot.status === "error" || snapshot.status === "completed";
+    const message = snapshot.tool === "approval_review"
+      ? "承認待ちです。工場が経営者の判断を待っています。"
+      : snapshot.status === "error"
+        ? `エラーです。${event?.line ?? "処理が停止しました。"}`
+        : snapshot.status === "completed"
+          ? `完了しました。${event?.line ?? "回復舞台へ移ります。"}`
+          : event
+            ? `${event.title}。${event.line}`
+            : speaker?.line
+              ? `${CHARACTER_LABELS[speaker.id]}。${speaker.line}`
+              : "";
+    if (message && message !== this.lastAnnouncement) {
+      this.announcer.setAttribute("aria-live", important ? "assertive" : "polite");
+      this.announcer.textContent = message;
+      this.lastAnnouncement = message;
     }
-
-    this.chillCard.classList.toggle("is-visible", !snapshot.active && !ceremony && world.chill > 0.18);
-    if (!snapshot.active) {
-      const messages = ["工場と脳を冷却しています", "次回燃焼分を静かに植林中", "雨音のあいだだけ、認知負荷を下げます", "かわいい作業員が森林在庫を補充中"];
-      const copy = this.chillCard.querySelector<HTMLElement>(".chill-card__copy");
-      if (copy) copy.textContent = messages[Math.floor(world.elapsed / 12) % messages.length];
-    }
-
-    this.debtStrip.textContent = snapshot.active
-      ? `${world.projectLabel} · ${formatNumber(metrics.totalTokensBurned)} TOK · 設備 ${metrics.growthLevel + 1}/24`
-      : `${world.projectLabel} · CHILL ${metrics.chillPercent}% · WASTED ${formatNumber(metrics.wastedTokens)} TOK`;
-
-    const moduleCount = Math.max(1, Math.min(12, 1 + Math.floor(world.growthLevel / 2)));
-    if (this.factory.childElementCount !== moduleCount) {
-      this.factory.replaceChildren(...Array.from({ length: moduleCount }, (_, index) => {
-        const module = document.createElement("i");
-        module.dataset.module = String(index % 4);
-        return module;
-      }));
-    }
-    this.factory.classList.toggle("is-active", snapshot.active);
   }
 
   toggleRealityCheck(force?: boolean): void {
-    this.realityVisible = force ?? !this.realityVisible;
-    this.realityDialog.classList.toggle("is-visible", this.realityVisible);
+    const visible = force ?? !this.realityVisible;
+    if (visible === this.realityVisible) return;
+    this.realityVisible = visible;
+    if (visible) {
+      this.lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.realityDialog.hidden = false;
+      setInert(this.realityDialog, false);
+      for (const element of this.modalBackground) setInert(element, true);
+      this.onModalChange(true);
+      this.realityHeading.focus();
+      return;
+    }
+    this.realityDialog.hidden = true;
+    setInert(this.realityDialog, true);
+    for (const element of this.modalBackground) setInert(element, false);
+    this.onModalChange(false);
+    this.lastFocused?.focus();
+    this.lastFocused = null;
   }
 
   private requireElement<T extends HTMLElement = HTMLDivElement>(selector: string): T {
@@ -178,3 +101,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     return element;
   }
 }
+
+const setInert = (element: HTMLElement, inert: boolean): void => {
+  element.inert = inert;
+  element.toggleAttribute("inert", inert);
+};

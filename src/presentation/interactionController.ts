@@ -2,20 +2,19 @@ import type { AgentSnapshot } from "../domain/agent";
 import { CHARACTER_IDS, CHARACTER_LABELS, type CharacterId } from "../domain/character";
 import type { CharacterDirector } from "../domain/characterDirector";
 import { manuallyCharNearestTree, type WorldState } from "../domain/world";
+import { SCENE_LAYOUT, type ActorPlacement } from "./sceneLayout";
+import { StageViewport } from "./stageViewport";
 
-const POSITIONS: Record<CharacterId, { x: number; y: number; width: number; height: number }> = {
-  emberbeak: { x: 54, y: 60, width: 16, height: 27 },
-  cinder: { x: 69, y: 65, width: 12, height: 22 },
-  axle: { x: 37, y: 68, width: 15, height: 20 },
-  vapo: { x: 84, y: 67, width: 14, height: 21 },
-  spriglet: { x: 63, y: 67, width: 14, height: 22 },
-  drizzle: { x: 73, y: 23, width: 18, height: 18 },
-};
+const ACTIVE_CHARACTERS = new Set<CharacterId>(["hinoko", "sumi", "kururi"]);
+const RECOVERY_CHARACTERS = new Set<CharacterId>(["fuwame", "mebuki", "mizumo"]);
+const FOREST_REGION = { x: 87, y: 170, width: 150, height: 124 };
 
 export class InteractionController {
   private readonly root: HTMLDivElement;
   private readonly buttons = new Map<CharacterId, HTMLButtonElement>();
+  private readonly forestButton: HTMLButtonElement;
   private enabled = false;
+  private activePhase = false;
   private dragStartX = 0;
   private dragStartOffset = 0;
 
@@ -27,16 +26,13 @@ export class InteractionController {
     this.root = document.createElement("div");
     this.root.className = "interaction-layer";
     this.root.setAttribute("aria-hidden", "true");
+    this.root.hidden = true;
+    setInert(this.root, true);
     for (const id of CHARACTER_IDS) {
-      const position = POSITIONS[id];
       const button = document.createElement("button");
       button.type = "button";
       button.className = `character-hotspot character-hotspot--${id}`;
       button.setAttribute("aria-label", `${CHARACTER_LABELS[id]}に触る`);
-      button.style.left = `${position.x}%`;
-      button.style.top = `${position.y}%`;
-      button.style.width = `${position.width}%`;
-      button.style.height = `${position.height}%`;
       button.addEventListener("click", (event) => {
         event.stopPropagation();
         if (!this.enabled) return;
@@ -48,17 +44,27 @@ export class InteractionController {
       button.addEventListener("pointerleave", () => {
         if (this.getWorld().interaction.hovered === id) this.getWorld().interaction.hovered = null;
       });
-      if (id === "drizzle") {
+      if (id === "fuwame") {
+        button.addEventListener("keydown", (event) => {
+          if (!this.enabled || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+          event.preventDefault();
+          const direction = event.key === "ArrowLeft" ? -1 : 1;
+          this.characterDirector.setFuwameOffset(this.getWorld(), this.getWorld().interaction.fuwameOffsetX + direction * 8);
+        });
         button.addEventListener("pointerdown", (event) => {
           if (!this.enabled) return;
           button.setPointerCapture(event.pointerId);
-          this.getWorld().interaction.dragging = "drizzle";
+          this.getWorld().interaction.dragging = "fuwame";
           this.dragStartX = event.clientX;
-          this.dragStartOffset = this.getWorld().interaction.drizzleOffsetX;
+          this.dragStartOffset = this.getWorld().interaction.fuwameOffsetX;
         });
         button.addEventListener("pointermove", (event) => {
-          if (!this.enabled || this.getWorld().interaction.dragging !== "drizzle") return;
-          this.characterDirector.setDrizzleOffset(this.getWorld(), this.dragStartOffset + (event.clientX - this.dragStartX) * 0.8);
+          if (!this.enabled || this.getWorld().interaction.dragging !== "fuwame") return;
+          const viewport = StageViewport.measure(this.root);
+          this.characterDirector.setFuwameOffset(
+            this.getWorld(),
+            this.dragStartOffset + (event.clientX - this.dragStartX) / viewport.scale,
+          );
         });
         button.addEventListener("pointerup", () => {
           this.getWorld().interaction.dragging = null;
@@ -68,13 +74,16 @@ export class InteractionController {
       this.buttons.set(id, button);
     }
 
-    this.root.addEventListener("click", (event) => {
-      if (!this.enabled || event.target !== this.root) return;
-      const rect = this.root.getBoundingClientRect();
-      const worldX = ((event.clientX - rect.left) / rect.width) * 320;
-      const worldY = ((event.clientY - rect.top) / rect.height) * 192;
-      if (worldX < 220 && worldY > 45) manuallyCharNearestTree(this.getWorld(), worldX, worldY);
+    this.forestButton = document.createElement("button");
+    this.forestButton.type = "button";
+    this.forestButton.className = "forest-hotspot";
+    this.forestButton.setAttribute("aria-label", "森側を押して森林在庫を一件処理する");
+    this.forestButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!this.enabled) return;
+      manuallyCharNearestTree(this.getWorld(), 84, 112);
     });
+    this.root.append(this.forestButton);
     host.append(this.root);
   }
 
@@ -86,19 +95,77 @@ export class InteractionController {
     world.interaction.dragging = null;
     this.root.classList.toggle("is-enabled", this.enabled);
     this.root.setAttribute("aria-hidden", String(!this.enabled));
+    this.root.hidden = !this.enabled;
+    setInert(this.root, !this.enabled);
+    for (const button of this.buttons.values()) button.tabIndex = this.enabled && !button.hidden ? 0 : -1;
+    this.forestButton.tabIndex = this.enabled ? 0 : -1;
     return this.enabled;
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
-    this.root.dataset.phase = snapshot.active ? "active" : "chill";
-    const drizzle = this.buttons.get("drizzle");
-    if (drizzle) drizzle.style.setProperty("--drag-x", `${world.interaction.drizzleOffsetX}px`);
+    this.activePhase = snapshot.active || snapshot.status === "error";
+    this.root.dataset.phase = this.activePhase ? "active" : "chill";
+    const viewport = StageViewport.measure(this.root);
     for (const id of CHARACTER_IDS) {
       const button = this.buttons.get(id);
       if (!button) continue;
+      const phaseCharacters = this.activePhase ? ACTIVE_CHARACTERS : RECOVERY_CHARACTERS;
+      button.hidden = !phaseCharacters.has(id);
+      button.tabIndex = this.enabled && !button.hidden ? 0 : -1;
+      if (!button.hidden) {
+        const placement = this.characterPlacement(id, world);
+        if (placement) this.placeButton(button, placement, viewport, id === "fuwame");
+      }
       button.classList.toggle("is-talking", Boolean(world.characters[id].line));
       button.classList.toggle("is-hovered", world.interaction.hovered === id);
       button.title = world.characters[id].line ?? CHARACTER_LABELS[id];
     }
+    this.placeButton(this.forestButton, FOREST_REGION, viewport);
+  }
+
+  private characterPlacement(id: CharacterId, world: WorldState): ActorPlacement | null {
+    if (this.activePhase) {
+      if (id === "hinoko" || id === "sumi") return SCENE_LAYOUT.active[id];
+      if (id === "kururi") {
+        const route = SCENE_LAYOUT.active.cart.maxX - SCENE_LAYOUT.active.cart.minX;
+        const phase = (world.elapsed * 6.1) % (route * 2);
+        const cartX = SCENE_LAYOUT.active.cart.minX + (phase <= route ? phase : route * 2 - phase);
+        return { ...SCENE_LAYOUT.active.kururi, x: cartX + (phase <= route ? 31 : -13) };
+      }
+      return null;
+    }
+    if (id === "fuwame") {
+      return {
+        ...SCENE_LAYOUT.recovery.fuwame,
+        x: SCENE_LAYOUT.recovery.fuwame.x + world.interaction.fuwameOffsetX,
+      };
+    }
+    if (id === "mebuki" || id === "mizumo") return SCENE_LAYOUT.recovery[id];
+    return null;
+  }
+
+  private placeButton(
+    button: HTMLButtonElement,
+    placement: ActorPlacement,
+    viewport: StageViewport,
+    centered = false,
+  ): void {
+    const raw = viewport.projectRect({
+      x: placement.x - placement.width / 2,
+      y: centered ? placement.y - placement.height / 2 : placement.y - placement.height,
+      width: placement.width,
+      height: placement.height,
+    });
+    const width = Math.max(24, raw.width);
+    const height = Math.max(24, raw.height);
+    button.style.left = `${raw.x - (width - raw.width) / 2}px`;
+    button.style.top = `${raw.y - (height - raw.height) / 2}px`;
+    button.style.width = `${width}px`;
+    button.style.height = `${height}px`;
   }
 }
+
+const setInert = (element: HTMLElement, inert: boolean): void => {
+  element.inert = inert;
+  element.toggleAttribute("inert", inert);
+};

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://token-fire.local/assets/asset-requests.schema.json",
+  "type": "object",
+  "required": ["version", "status", "purpose", "globalDirection", "files"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["deferred", "approved", "generated"] },
+    "purpose": { "type": "string" },
+    "globalDirection": {
+      "type": "object",
+      "required": ["visualStyle", "constraints"],
+      "properties": {
+        "visualStyle": { "type": "array", "items": { "type": "string" } },
+        "constraints": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "role", "size", "alpha", "prompt", "runtimeFallback"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^[a-z0-9/_-]+\\.png$" },
+          "role": { "type": "string" },
+          "size": {
+            "type": "object",
+            "required": ["width", "height"],
+            "properties": {
+              "width": { "type": "integer", "minimum": 1 },
+              "height": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          },
+          "alpha": { "type": "boolean" },
+          "prompt": { "type": "string" },
+          "runtimeFallback": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

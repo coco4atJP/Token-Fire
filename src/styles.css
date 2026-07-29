@@ -1,6 +1,6 @@
 :root {
   font-family: Inter, ui-rounded, "Hiragino Maru Gothic ProN", "Yu Gothic UI", system-ui, sans-serif;
-  color: #f4ead8;
+  color: #f7e8ce;
   background: transparent;
   font-synthesis: none;
   text-rendering: geometricPrecision;
@@ -9,6 +9,10 @@
 * {
   box-sizing: border-box;
   user-select: none;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -22,49 +26,76 @@ body,
 }
 
 body {
-  padding: 7px;
+  padding: 6px;
 }
 
 .shell {
   position: relative;
   width: 100%;
   height: 100%;
-  min-width: 300px;
-  min-height: 190px;
+  min-width: 368px;
+  min-height: 228px;
   overflow: hidden;
-  border: 1px solid rgba(244, 196, 92, 0.5);
-  border-radius: 12px;
+  border: 1px solid rgba(224, 166, 84, 0.72);
+  border-radius: 9px;
   background:
-    radial-gradient(circle at 74% 18%, rgba(244, 185, 79, 0.12), transparent 31%),
-    linear-gradient(155deg, rgba(49, 38, 31, 0.96), rgba(15, 17, 21, 0.94));
+    linear-gradient(90deg, rgba(255, 213, 135, 0.07) 0 1px, transparent 1px 14px),
+    linear-gradient(165deg, rgba(85, 48, 32, 0.99), rgba(28, 19, 20, 0.99));
   box-shadow:
-    0 14px 42px rgba(0, 0, 0, 0.34),
-    inset 0 0 0 1px rgba(255, 230, 170, 0.08);
+    0 17px 44px rgba(0, 0, 0, 0.42),
+    inset 0 0 0 2px rgba(255, 219, 151, 0.12),
+    inset 0 -9px 17px rgba(0, 0, 0, 0.24);
   contain: paint;
+}
+
+.shell::before,
+.shell::after {
+  position: absolute;
+  z-index: 4;
+  top: 5px;
+  bottom: 5px;
+  width: 4px;
+  content: "";
+  border-radius: 2px;
+  opacity: 0.48;
+  background: linear-gradient(#d39a58, #5b3228);
+  pointer-events: none;
+}
+
+.shell::before {
+  left: 5px;
+}
+
+.shell::after {
+  right: 5px;
 }
 
 .drag-strip {
   position: absolute;
   inset: 0 0 auto 0;
   z-index: 5;
-  height: 32px;
-  background: linear-gradient(180deg, rgba(12, 13, 17, 0.62), rgba(12, 13, 17, 0));
+  height: 29px;
+  background: linear-gradient(180deg, rgba(35, 20, 19, 0.72), rgba(35, 20, 19, 0));
 }
 
 .brand {
   position: absolute;
   z-index: 6;
-  bottom: 9px;
+  bottom: 8px;
   left: 50%;
   display: flex;
   align-items: center;
   gap: 6px;
   pointer-events: none;
   transform: translateX(-50%);
-  font-size: 8px;
+  padding: 2px 8px;
+  border: 1px solid rgba(222, 165, 88, 0.32);
+  border-radius: 3px;
+  font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.13em;
-  color: rgba(255, 237, 194, 0.52);
+  color: rgba(255, 237, 194, 0.62);
+  background: rgba(48, 27, 23, 0.7);
   text-shadow: 1px 1px #19151a;
 }
 
@@ -85,8 +116,8 @@ body {
   right: 7px;
   display: flex;
   gap: 5px;
-  opacity: 0;
-  transform: translateY(-3px);
+  opacity: 0.62;
+  transform: translateY(0);
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
@@ -97,19 +128,98 @@ body {
 }
 
 .toolbar button {
-  height: 23px;
-  min-width: 25px;
+  height: 26px;
+  min-width: 26px;
   padding: 0 8px;
   border: 1px solid rgba(255, 214, 118, 0.28);
-  border-radius: 6px;
+  border-radius: 4px;
   color: #eee5d5;
-  background: rgba(25, 26, 31, 0.84);
+  background: rgba(42, 25, 24, 0.88);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(7px);
   font: inherit;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.theatre-menu {
+  position: absolute;
+  z-index: 35;
+  top: 38px;
+  right: 34px;
+  display: grid;
+  width: min(230px, calc(100% - 24px));
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid rgba(232, 185, 104, 0.42);
+  border-radius: 8px;
+  color: #f5ead7;
+  background: rgba(37, 25, 24, 0.96);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+}
+
+.theatre-menu button {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  font: 700 11px/1.3 inherit;
+  cursor: pointer;
+}
+
+.theatre-menu button:hover,
+.theatre-menu button:focus-visible {
+  outline: 1px solid rgba(255, 214, 118, 0.5);
+  background: rgba(255, 211, 107, 0.13);
+}
+
+.theatre-menu button:disabled {
+  color: rgba(245, 234, 215, 0.52);
+  cursor: default;
+}
+
+.play-guide {
+  position: absolute;
+  z-index: 18;
+  left: 50%;
+  bottom: 31px;
+  display: grid;
+  width: min(420px, calc(100% - 28px));
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(250, 210, 118, 0.5);
+  border-radius: 8px;
+  color: #f9edd7;
+  background: rgba(38, 27, 24, 0.94);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.38);
+  transform: translateX(-50%);
+}
+
+.play-guide strong {
+  color: #ffd36b;
+  font-size: 12px;
+}
+
+.play-guide span {
+  grid-column: 1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.play-guide button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 56px;
+  min-height: 28px;
+  border: 1px solid rgba(255, 214, 118, 0.34);
+  border-radius: 5px;
+  color: #f9edd7;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .toolbar button:hover,
@@ -129,11 +239,29 @@ canvas {
   height: 100%;
 }
 
+.stage-loading {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  padding: 7px 12px;
+  border: 1px solid rgba(241, 190, 104, 0.34);
+  border-radius: 4px;
+  color: rgba(248, 222, 181, 0.78);
+  background: rgba(40, 24, 22, 0.86);
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .status-line {
   position: absolute;
   z-index: 6;
   right: 10px;
-  bottom: 9px;
+  bottom: 10px;
   max-width: 37%;
   overflow: hidden;
   color: rgba(241, 233, 216, 0.68);
@@ -169,5 +297,29 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
   .toolbar {
     transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    padding: 4px;
+  }
+
+  .toolbar {
+    top: 5px;
+    right: 5px;
+    gap: 2px;
+  }
+
+  .toolbar button {
+    height: 24px;
+    min-width: 24px;
+    padding: 0 5px;
+    font-size: 8.5px;
+  }
+
+  .brand,
+  .status-line {
+    display: none;
   }
 }

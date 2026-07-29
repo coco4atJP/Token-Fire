@@ -1,4 +1,11 @@
+import { Application, Container, Graphics, Sprite, Text } from "pixi.js";
 import type { ReplayFrame, ReplaySession } from "../domain/experienceData";
+import { SCENE_LAYOUT } from "./sceneLayout";
+import { SpriteAtlas } from "./spriteAtlas";
+import { StageViewport, STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
+
+const REPLAY_WIDTH = 960;
+const REPLAY_HEIGHT = 540;
 
 export const exportReplayData = (replay: ReplaySession): void => {
   downloadBlob(new Blob([JSON.stringify(replay, null, 2)], { type: "application/json" }), `${safeName(replay.title)}.token-fire.json`);
@@ -6,15 +13,10 @@ export const exportReplayData = (replay: ReplaySession): void => {
 
 export const exportReplayVideo = async (replay: ReplaySession): Promise<"video" | "data"> => {
   const canvas = document.createElement("canvas");
-  canvas.width = 960;
-  canvas.height = 540;
-  const context = canvas.getContext("2d");
-  if (!context || typeof canvas.captureStream !== "function" || typeof MediaRecorder === "undefined") {
+  if (typeof canvas.captureStream !== "function" || typeof MediaRecorder === "undefined") {
     exportReplayData(replay);
     return "data";
   }
-
-  const stream = canvas.captureStream(30);
   const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
     .find((candidate) => MediaRecorder.isTypeSupported(candidate));
   if (!mimeType) {
@@ -22,6 +24,14 @@ export const exportReplayVideo = async (replay: ReplaySession): Promise<"video" 
     return "data";
   }
 
+  let stage: ReplayStage;
+  try {
+    stage = await ReplayStage.create(canvas);
+  } catch {
+    exportReplayData(replay);
+    return "data";
+  }
+  const stream = canvas.captureStream(30);
   const chunks: BlobPart[] = [];
   const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
   recorder.addEventListener("dataavailable", (event) => {
@@ -36,7 +46,7 @@ export const exportReplayVideo = async (replay: ReplaySession): Promise<"video" 
     const draw = (now: number): void => {
       const progress = Math.min(1, (now - started) / (videoDuration * 1000));
       const frameIndex = Math.min(replay.frames.length - 1, Math.floor(progress * replay.frames.length));
-      renderReplayFrame(context, canvas, replay, replay.frames[Math.max(0, frameIndex)], progress);
+      stage.render(replay, replay.frames[Math.max(0, frameIndex)], progress);
       if (progress < 1) requestAnimationFrame(draw);
       else resolve();
     };
@@ -46,116 +56,168 @@ export const exportReplayVideo = async (replay: ReplaySession): Promise<"video" 
   recorder.stop();
   await stopped;
   for (const track of stream.getTracks()) track.stop();
+  stage.dispose();
   downloadBlob(new Blob(chunks, { type: mimeType }), `${safeName(replay.title)}.webm`);
   return "video";
 };
 
-const renderReplayFrame = (
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  replay: ReplaySession,
-  frame: ReplayFrame,
-  progress: number,
-): void => {
-  const active = frame.active || frame.heat > 0.32;
-  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  if (active) {
-    sky.addColorStop(0, `rgb(${60 + Math.round(frame.heat * 75)}, 45, 53)`);
-    sky.addColorStop(1, "#59452f");
-  } else {
-    sky.addColorStop(0, "#79b4c8");
-    sky.addColorStop(1, "#587d54");
+class ReplayStage {
+  private readonly root = new Container();
+  private readonly graphics = new Graphics();
+  private readonly background: Sprite;
+  private readonly floor: Sprite;
+  private readonly leftCurtain: Sprite;
+  private readonly rightCurtain: Sprite;
+  private readonly valance: Sprite;
+  private readonly frame: Sprite;
+  private readonly headline = label(9.4, 0xffd36b, "800");
+  private readonly metrics = label(6.5, 0xf4ead8, "600");
+
+  private constructor(
+    private readonly app: Application,
+    private readonly atlas: SpriteAtlas,
+  ) {
+    const viewport = new StageViewport(REPLAY_WIDTH, REPLAY_HEIGHT);
+    this.root.scale.set(viewport.scale);
+    this.root.position.set(viewport.offsetX, viewport.offsetY);
+    this.background = sprite(atlas, "backdropRecovery", STAGE_WIDTH / 2, STAGE_HEIGHT, STAGE_WIDTH, STAGE_HEIGHT);
+    this.floor = sprite(atlas, "stageFloor", STAGE_WIDTH / 2, STAGE_HEIGHT, STAGE_WIDTH, 90);
+    this.leftCurtain = sprite(atlas, "curtainLeft", 0, 0, 48, 142, 0, 0);
+    this.rightCurtain = sprite(atlas, "curtainRight", STAGE_WIDTH, 0, 48, 142, 1, 0);
+    this.valance = sprite(atlas, "curtainValance", STAGE_WIDTH / 2, 0, STAGE_WIDTH, 38, 0.5, 0);
+    this.frame = sprite(atlas, "prosceniumFrame", STAGE_WIDTH / 2, STAGE_HEIGHT, STAGE_WIDTH, STAGE_HEIGHT);
+    this.headline.position.set(23, 35);
+    this.metrics.position.set(23, 52);
+    this.root.addChild(
+      this.background,
+      this.floor,
+      this.graphics,
+      this.leftCurtain,
+      this.rightCurtain,
+      this.valance,
+      this.frame,
+      this.headline,
+      this.metrics,
+    );
+    this.app.stage.addChild(this.root);
   }
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = active ? "#6b563d" : "#668355";
-  ctx.beginPath();
-  ctx.ellipse(450, 455, 520, 150, 0, 0, Math.PI * 2);
-  ctx.fill();
+  static async create(canvas: HTMLCanvasElement): Promise<ReplayStage> {
+    const app = new Application();
+    await app.init({
+      canvas,
+      width: REPLAY_WIDTH,
+      height: REPLAY_HEIGHT,
+      antialias: true,
+      autoStart: false,
+      backgroundAlpha: 1,
+      preference: "webgl",
+      resolution: 1,
+    });
+    app.ticker.stop();
+    return new ReplayStage(app, await SpriteAtlas.load());
+  }
 
-  drawReplayTrees(ctx, frame);
-  drawReplayFactory(ctx, frame, progress);
-  drawReplayLake(ctx, frame);
+  render(replay: ReplaySession, frame: ReplayFrame, progress: number): void {
+    const active = frame.active || frame.heat > 0.32;
+    this.background.texture = this.atlas.get(active ? "backdropActive" : "backdropRecovery");
+    const hasTheatreAssets = this.atlas.has("prosceniumFrame") && this.atlas.has("stageFloor");
+    for (const item of [this.background, this.floor, this.leftCurtain, this.rightCurtain, this.valance, this.frame]) {
+      item.visible = hasTheatreAssets;
+    }
 
-  ctx.fillStyle = "rgba(20,18,20,.78)";
-  ctx.fillRect(34, 28, 892, 78);
-  ctx.fillStyle = "#ffd36b";
-  ctx.font = "700 25px system-ui, sans-serif";
-  ctx.fillText(replay.projectLabel, 58, 62);
-  ctx.fillStyle = "#f4ead8";
-  ctx.font = "600 17px ui-monospace, monospace";
-  ctx.fillText(`${frame.taskTokens.toLocaleString()} TOK · ENERGY ${frame.energyLevel + 1}/24 · FACTORY ${frame.growthLevel + 1}/24`, 58, 90);
+    const g = this.graphics.clear();
+    if (!hasTheatreAssets) {
+      g.rect(0, 0, STAGE_WIDTH, STAGE_HEIGHT).fill(active ? 0x684238 : 0x7eb6a0);
+      this.drawFallbackFrame(g, active);
+    }
+    this.drawTrees(g, frame);
+    this.drawFactory(g, frame, progress);
+    this.drawLake(g, frame);
+    g.roundRect(17, 31, 286, 37, 4).fill({ color: 0x1b1614, alpha: 0.8 });
+    g.rect(17, 180, 286, 3).fill({ color: 0xffffff, alpha: 0.16 });
+    g.rect(17, 180, 286 * progress, 3).fill(active ? 0xf2aa3f : 0x9bd3a5);
 
-  ctx.fillStyle = "rgba(20,18,20,.72)";
-  ctx.fillRect(34, 478, 892, 38);
-  ctx.fillStyle = active ? "#ffc24a" : "#c9f0d4";
-  ctx.font = "700 16px system-ui, sans-serif";
-  ctx.fillText(frame.event ? String(frame.event).toUpperCase() : active ? "TOKEN INCINERATION" : "PLANTATION CHILL", 52, 503);
+    this.headline.text = frame.event ? String(frame.event).toUpperCase() : active ? "TOKEN FORGE · ACTIVE" : "RECOVERY GROVE · CHILL";
+    this.headline.style.fill = active ? 0xffc24a : 0xc9f0d4;
+    this.metrics.text = `${replay.projectLabel} · ${frame.taskTokens.toLocaleString()} TOK · ENERGY ${frame.energyLevel + 1}/24 · FACTORY ${frame.growthLevel + 1}/24`;
+    this.app.render();
+  }
 
-  const barWidth = 860 * progress;
-  ctx.fillStyle = "rgba(255,255,255,.16)";
-  ctx.fillRect(50, 526, 860, 5);
-  ctx.fillStyle = active ? "#f2aa3f" : "#9bd3a5";
-  ctx.fillRect(50, 526, barWidth, 5);
-};
+  dispose(): void {
+    this.app.destroy(false, { children: true });
+  }
 
-const drawReplayTrees = (ctx: CanvasRenderingContext2D, frame: ReplayFrame): void => {
-  for (let index = 0; index < frame.trees.length; index += 1) {
-    const column = index % 14;
-    const row = Math.floor(index / 14);
-    const x = 55 + column * 37 + row * 8;
-    const y = 398 - row * 88 + Math.sin(index * 1.7) * 4;
-    const stage = frame.trees[index];
-    ctx.strokeStyle = "#4a3023";
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(x, y + 28);
-    ctx.lineTo(x, y - 5);
-    ctx.stroke();
-    if (stage === "c") {
-      ctx.fillStyle = "#302825";
-      ctx.fillRect(x - 8, y - 14, 16, 13);
-    } else if (stage === "b") {
-      ctx.fillStyle = "#ff8a2a";
-      ctx.beginPath();
-      ctx.arc(x, y - 18, 17, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = stage === "s" ? "#8fc46b" : "#4f995e";
-      ctx.beginPath();
-      ctx.arc(x, y - 17, stage === "s" ? 10 : 20, 0, Math.PI * 2);
-      ctx.fill();
+  private drawTrees(g: Graphics, frame: ReplayFrame): void {
+    for (let index = 0; index < frame.trees.length; index += 1) {
+      const column = index % 7;
+      const row = Math.floor(index / 7);
+      const x = 23 + column * 20 + row * 3;
+      const y = 166 - row * 26 + Math.sin(index * 1.7) * 1.5;
+      const stage = frame.trees[index];
+      g.moveTo(x, y + 8).lineTo(x, y - 4).stroke({ color: 0x4a3023, width: 2 });
+      if (stage === "c") g.rect(x - 3, y - 8, 6, 7).fill(0x302825);
+      else if (stage === "b") g.circle(x, y - 8, 6).fill(0xff8a2a);
+      else g.circle(x, y - 8, stage === "s" ? 4 : 7).fill(stage === "s" ? 0x8fc46b : 0x4f995e);
     }
   }
-};
 
-const drawReplayFactory = (ctx: CanvasRenderingContext2D, frame: ReplayFrame, progress: number): void => {
-  const x = 655;
-  const y = 365;
-  ctx.fillStyle = "#3c3c40";
-  ctx.fillRect(x, y - 135, 190, 135);
-  ctx.fillStyle = `rgba(255,126,38,${0.35 + frame.heat * 0.65})`;
-  ctx.fillRect(x + 65, y - 65, 62, 55);
-  const chimneys = 1 + Math.floor(frame.growthLevel / 5);
-  for (let index = 0; index < chimneys; index += 1) {
-    const height = 75 + (index % 3) * 18 + frame.growthLevel * 1.4;
-    ctx.fillStyle = "#55565a";
-    ctx.fillRect(x + 18 + index * 32, y - 135 - height, 22, height);
-    if (frame.active) {
-      ctx.fillStyle = `rgba(68,58,61,${0.35 + frame.pollution * 0.55})`;
-      ctx.beginPath();
-      ctx.arc(x + 29 + index * 32 + Math.sin(progress * 25 + index) * 9, y - 150 - height, 18 + frame.pollution * 12, 0, Math.PI * 2);
-      ctx.fill();
+  private drawFactory(g: Graphics, frame: ReplayFrame, progress: number): void {
+    const { x, y, width, height } = SCENE_LAYOUT.forge;
+    g.roundRect(x - width / 2, y - height, width, height, 5).fill(0x3c3c40);
+    g.roundRect(x - 13, y - 34, 27, 29, 3).fill({ color: 0xff7e26, alpha: 0.35 + frame.heat * 0.65 });
+    const chimneys = 1 + Math.floor(frame.growthLevel / 5);
+    for (let index = 0; index < chimneys; index += 1) {
+      const chimneyHeight = 22 + (index % 3) * 5 + frame.growthLevel * 0.4;
+      const chimneyX = x - 34 + index * 10;
+      g.rect(chimneyX, y - height - chimneyHeight, 7, chimneyHeight).fill(0x55565a);
+      if (frame.active) {
+        g.circle(chimneyX + 3 + Math.sin(progress * 25 + index) * 3, y - height - chimneyHeight - 5, 6 + frame.pollution * 4)
+          .fill({ color: 0x443a3d, alpha: 0.35 + frame.pollution * 0.55 });
+      }
     }
   }
-};
 
-const drawReplayLake = (ctx: CanvasRenderingContext2D, frame: ReplayFrame): void => {
-  ctx.fillStyle = frame.heat > 0.7 ? "rgba(115,125,117,.8)" : "rgba(69,163,191,.88)";
-  ctx.beginPath();
-  ctx.ellipse(850, 420, 90, Math.max(15, 54 * frame.water), 0, 0, Math.PI * 2);
-  ctx.fill();
+  private drawLake(g: Graphics, frame: ReplayFrame): void {
+    g.ellipse(SCENE_LAYOUT.lake.x, 154, SCENE_LAYOUT.lake.radiusX, Math.max(5, 18 * frame.water))
+      .fill({ color: frame.heat > 0.7 ? 0x737d75 : 0x45a3bf, alpha: 0.88 });
+  }
+
+  private drawFallbackFrame(g: Graphics, active: boolean): void {
+    const wood = active ? 0x4d2f24 : 0x49352a;
+    g.rect(0, 0, STAGE_WIDTH, 10).fill(wood);
+    g.rect(0, 0, 10, STAGE_HEIGHT).fill(wood);
+    g.rect(STAGE_WIDTH - 10, 0, 10, STAGE_HEIGHT).fill(wood);
+    g.rect(0, STAGE_HEIGHT - 10, STAGE_WIDTH, 10).fill(wood);
+  }
+}
+
+const label = (fontSize: number, fill: number, fontWeight: "600" | "800"): Text =>
+  new Text({
+    style: {
+      fill,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      fontSize,
+      fontWeight,
+    },
+  });
+
+const sprite = (
+  atlas: SpriteAtlas,
+  key: Parameters<SpriteAtlas["get"]>[0],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  anchorX = 0.5,
+  anchorY = 1,
+): Sprite => {
+  const value = new Sprite({ texture: atlas.get(key) });
+  value.anchor.set(anchorX, anchorY);
+  value.position.set(x, y);
+  value.width = width;
+  value.height = height;
+  return value;
 };
 
 export const downloadBlob = (blob: Blob, filename: string): void => {

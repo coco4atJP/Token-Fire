@@ -8,11 +8,11 @@ import { DemoAgentSource } from "../infrastructure/demoSource";
 import type { ProjectMeta, WorldPersistence } from "../infrastructure/worldPersistence";
 import type { AudioDirector } from "../presentation/audioDirector";
 import type { ExperiencePresenter } from "../presentation/experienceOverlay";
-import { PixelRenderer } from "../presentation/pixelRenderer";
 import type { AttentionDirector } from "./attentionDirector";
 import type { EnvironmentDirector } from "./environmentDirector";
 import type { PackEventDirector } from "./packEventDirector";
 import type { ReplayRecorder } from "./replayRecorder";
+import type { WorldRenderer } from "./worldRenderer";
 
 export type SourceMode = "codex" | "demo";
 
@@ -42,7 +42,7 @@ export class AppController {
 
   constructor(
     private readonly codexSource: AgentSource,
-    private readonly renderer: PixelRenderer,
+    private readonly renderer: WorldRenderer,
     private readonly audio: AudioDirector,
     private readonly experience: ExperiencePresenter,
     private readonly persistence: WorldPersistence,
@@ -70,6 +70,7 @@ export class AppController {
     this.replay.stop(this.world);
     this.persistence.save(this.world);
     this.audio.dispose();
+    this.renderer.dispose();
   }
 
   setMode(mode: SourceMode): void {

@@ -10,27 +10,61 @@ interface LifeBeat {
   active?: boolean;
 }
 
+export const CHARACTER_LINES: Record<CharacterId, readonly [string, string, string]> = {
+  hinoko: [
+    "よし、今日も世界を少しだけ成果に変えよう。",
+    "在庫が戻った！　素晴らしいめぐりだ！",
+    "成果欄は空白だが、炉は実によく働いた。",
+  ],
+  mebuki: [
+    "ここ、空いてます。植えられます。",
+    "大丈夫です。根っこは、だいたい諦めません。",
+    "たくさん育ちました！　……また使えますね！",
+  ],
+  fuwame: [
+    "少し冷やしますね。",
+    "今日は、急がなくても大丈夫な雨です。",
+    "その紙吹雪、燃えています。降ります。",
+  ],
+  sumi: [
+    "これ、すっごく燃えそう！",
+    "警報が鳴った！　今日いちばん楽しい音！",
+    "消えてないよ。小さく燃えてるだけ！",
+  ],
+  mizumo: [
+    "ジュッ、ってしました。成功です。",
+    "今日は少し、浅いです。",
+    "戻ってきました。雨の味がします。",
+  ],
+  kururi: [
+    "止めなくていいです。三分だけ流量を落としてください。",
+    "これは事故ではなく、未計画の分解です。",
+    "花壇にしたのは、部品が余ったからです。",
+  ],
+};
+
 const BEATS: LifeBeat[] = [
-  { id: "emberbeak", act: "inspect-ledger", mood: "proud", line: "森林在庫、よし。次の燃焼計画を承認する。" },
-  { id: "cinder", act: "snack-token", mood: "scheming", line: "これは盗み食いではなく、燃料品質検査です。", active: true },
-  { id: "axle", act: "overstack-logs", mood: "busy", line: "最大積載量は、目標値です。", active: true },
-  { id: "vapo", act: "invoice-coolant", mood: "surprised", line: "湖一杯ぶん、冷却水として請求しておきます。" },
-  { id: "spriglet", act: "plant-monoculture", mood: "busy", line: "よく燃えて早く育つ木だけ植えています。" },
-  { id: "drizzle", act: "selective-rain", mood: "scheming", line: "工場には雨。森には予算がありません。" },
-  { id: "cinder", act: "nap", mood: "sleepy", line: "炉が止まっている間だけ休憩です。" },
-  { id: "emberbeak", act: "gossip", mood: "proud", line: "環境部門には、緑色の塗料を追加しておけ。" },
-  { id: "axle", act: "gossip", mood: "scheming", line: "切り株は景観設備として計上できます。" },
-  { id: "vapo", act: "nap", mood: "chill", line: "水位が戻るまで、ぷかぷかしています。" },
+  { id: "hinoko", act: "inspect-ledger", mood: "proud", line: CHARACTER_LINES.hinoko[0], active: true },
+  { id: "hinoko", act: "celebrate", mood: "proud", line: CHARACTER_LINES.hinoko[1], active: false },
+  { id: "hinoko", act: "inspect-ledger", mood: "surprised", line: CHARACTER_LINES.hinoko[2] },
+  { id: "mebuki", act: "plant-monoculture", mood: "busy", line: CHARACTER_LINES.mebuki[0], active: false },
+  { id: "mebuki", act: "plant-monoculture", mood: "chill", line: CHARACTER_LINES.mebuki[1], active: false },
+  { id: "mebuki", act: "celebrate", mood: "proud", line: CHARACTER_LINES.mebuki[2], active: false },
+  { id: "fuwame", act: "selective-rain", mood: "busy", line: CHARACTER_LINES.fuwame[0], active: true },
+  { id: "fuwame", act: "selective-rain", mood: "chill", line: CHARACTER_LINES.fuwame[1], active: false },
+  { id: "fuwame", act: "react", mood: "surprised", line: CHARACTER_LINES.fuwame[2], active: true },
+  { id: "sumi", act: "snack-token", mood: "proud", line: CHARACTER_LINES.sumi[0], active: true },
+  { id: "sumi", act: "react", mood: "surprised", line: CHARACTER_LINES.sumi[1], active: true },
+  { id: "sumi", act: "nap", mood: "sleepy", line: CHARACTER_LINES.sumi[2], active: false },
+  { id: "mizumo", act: "invoice-coolant", mood: "proud", line: CHARACTER_LINES.mizumo[0], active: true },
+  { id: "mizumo", act: "inspect-ledger", mood: "surprised", line: CHARACTER_LINES.mizumo[1], active: true },
+  { id: "mizumo", act: "nap", mood: "chill", line: CHARACTER_LINES.mizumo[2], active: false },
+  { id: "kururi", act: "overstack-logs", mood: "busy", line: CHARACTER_LINES.kururi[0], active: true },
+  { id: "kururi", act: "react", mood: "surprised", line: CHARACTER_LINES.kururi[1], active: true },
+  { id: "kururi", act: "plant-monoculture", mood: "chill", line: CHARACTER_LINES.kururi[2], active: false },
 ];
 
-const INTERACTION_LINES: Record<CharacterId, string[]> = {
-  emberbeak: ["視察ごくろう。破壊量は順調だ。", "ハンマーには触るな。株主総会用だ。"],
-  cinder: ["Tokenを一粒だけ……二粒だけ……。", "燃料棚の数は合っています。たぶん。"],
-  axle: ["丸太をもう一本くらい載せても平気です。", "ブレーキはコスト削減対象です。"],
-  vapo: ["押すと冷却水がこぼれます。請求します。", "今日は湖の残量が多めです。"],
-  spriglet: ["植林は次の伐採への投資です。", "多様性より燃焼効率を優先しています。"],
-  drizzle: ["雨の配送先を変更します。", "森への配水は有料プランです。"],
-};
+const INTERACTION_LINES = CHARACTER_LINES;
 
 export class CharacterDirector {
   private nextBeatAt = 7;
@@ -65,17 +99,17 @@ export class CharacterDirector {
     const line = lines[state.interactions % lines.length];
     state.interactions += 1;
     state.act = "react";
-    state.mood = id === "vapo" || id === "drizzle" ? "surprised" : "proud";
+    state.mood = id === "mizumo" || id === "fuwame" ? "surprised" : "proud";
     state.line = line;
     state.until = world.elapsed + 4.2;
     state.offsetY = -2.2;
     world.interaction.lastInteractionAt = world.elapsed;
 
-    const eventType = id === "cinder"
-      ? "cinder-feast"
-      : id === "drizzle" || id === "vapo"
+    const eventType = id === "sumi"
+      ? "sumi-feast"
+      : id === "fuwame" || id === "mizumo"
         ? "recovery-rainbow"
-        : id === "emberbeak"
+        : id === "hinoko"
           ? "forge-sneeze"
           : "plantation-break";
     enqueueWorldEvent(world, eventType, 1, {
@@ -86,12 +120,12 @@ export class CharacterDirector {
     });
   }
 
-  setDrizzleOffset(world: WorldState, offsetX: number): void {
-    world.interaction.drizzleOffsetX = Math.max(-88, Math.min(88, offsetX));
-    const state = world.characters.drizzle;
+  setFuwameOffset(world: WorldState, offsetX: number): void {
+    world.interaction.fuwameOffsetX = Math.max(-88, Math.min(88, offsetX));
+    const state = world.characters.fuwame;
     state.act = "react";
     state.mood = "surprised";
-    state.line = "雨の配送先を手動変更しました。";
+    state.line = CHARACTER_LINES.fuwame[0];
     state.until = world.elapsed + 2.8;
   }
 
@@ -106,4 +140,4 @@ export class CharacterDirector {
 }
 
 const snapshotTone = (id: CharacterId): "destruction" | "chill" =>
-  id === "drizzle" || id === "vapo" || id === "spriglet" ? "chill" : "destruction";
+  id === "fuwame" || id === "mizumo" || id === "mebuki" ? "chill" : "destruction";

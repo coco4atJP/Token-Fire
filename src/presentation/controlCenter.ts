@@ -11,8 +11,13 @@ import { exportEnvironmentalDebtReport } from "./reportGenerator";
 export class ControlCenter {
   private readonly root: HTMLElement;
   private readonly body: HTMLElement;
+  private readonly heading: HTMLElement;
+  private readonly tabs: HTMLElement;
+  private readonly modalBackground: HTMLElement[];
   private open = false;
   private activeTab = "ledger";
+  private surface: "ledger" | "settings" = "ledger";
+  private lastFocused: HTMLElement | null = null;
   private lastRenderAt = 0;
   private world: WorldState;
   private snapshot: AgentSnapshot;
@@ -25,32 +30,77 @@ export class ControlCenter {
     private readonly settings: SettingsStore,
     private readonly eventPacks: EventPackRegistry,
     private readonly platform: PlatformBridge,
+    private readonly onModalChange: (open: boolean) => void = () => {},
+    private readonly onReplayPlayIntro: () => void = () => {},
   ) {
     this.world = initialWorld;
     this.snapshot = initialSnapshot;
     this.root = document.createElement("section");
     this.root.className = "control-center";
-    this.root.setAttribute("aria-label", "Token-Fire記録棚");
+    this.root.setAttribute("role", "dialog");
+    this.root.setAttribute("aria-modal", "true");
+    this.root.setAttribute("aria-labelledby", "control-center-title");
+    this.root.hidden = true;
+    setInert(this.root, true);
     this.root.innerHTML = `
-      <header class="control-center__header"><strong>COMPANY LEDGER</strong><button type="button" data-action="close" aria-label="閉じる">×</button></header>
-      <nav class="control-center__tabs" aria-label="記録棚のページ">
-        <button type="button" data-tab="ledger">記録</button><button type="button" data-tab="projects">事業所</button>
-        <button type="button" data-tab="replays">動作</button><button type="button" data-tab="events">できごと</button><button type="button" data-tab="settings">設定</button>
+      <header class="control-center__header"><strong id="control-center-title" tabindex="-1">つけ帳</strong><button type="button" data-action="close" aria-label="閉じる">×</button></header>
+      <nav class="control-center__tabs" role="tablist" aria-label="つけ帳のページ">
+        <button type="button" role="tab" data-tab="ledger">記録</button><button type="button" role="tab" data-tab="projects">事業所</button>
+        <button type="button" role="tab" data-tab="replays">動作</button><button type="button" role="tab" data-tab="events">できごと</button>
       </nav>
-      <div class="control-center__body"></div>
+      <div class="control-center__body" role="tabpanel"></div>
       <input class="event-pack-input" type="file" accept="application/json,.json" hidden>
     `;
+    this.modalBackground = Array.from(host.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
     host.append(this.root);
     this.body = this.requireElement<HTMLElement>(".control-center__body");
+    this.heading = this.requireElement<HTMLElement>("#control-center-title");
+    this.tabs = this.requireElement<HTMLElement>(".control-center__tabs");
     this.root.addEventListener("click", (event) => void this.handleClick(event));
     this.root.addEventListener("change", (event) => void this.handleChange(event));
     this.root.querySelector<HTMLInputElement>(".event-pack-input")?.addEventListener("change", (event) => void this.importPack(event));
+    this.tabs.addEventListener("keydown", (event) => this.handleTabKey(event));
+    this.root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") this.toggle(false);
+    });
   }
 
-  toggle(force?: boolean): void {
-    this.open = force ?? !this.open;
+  toggle(force?: boolean, surface: "ledger" | "settings" = "ledger"): void {
+    const nextOpen = force ?? !this.open;
+    if (nextOpen && this.open && surface !== this.surface) {
+      this.surface = surface;
+      this.activeTab = surface === "settings" ? "settings" : "ledger";
+      this.render(true);
+      return;
+    }
+    if (nextOpen === this.open) return;
+    this.open = nextOpen;
+    this.surface = surface;
+    this.activeTab = surface === "settings" ? "settings" : "ledger";
     this.root.classList.toggle("is-open", this.open);
-    if (this.open) this.render(true);
+    this.root.dataset.surface = this.surface;
+    this.tabs.hidden = this.surface === "settings";
+    this.heading.textContent = this.surface === "settings" ? "劇場外の操作卓" : "つけ帳";
+    if (this.open) {
+      this.lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      this.root.hidden = false;
+      setInert(this.root, false);
+      for (const element of this.modalBackground) setInert(element, true);
+      this.onModalChange(true);
+      this.render(true);
+      this.heading.focus();
+      return;
+    }
+    this.root.hidden = true;
+    setInert(this.root, true);
+    for (const element of this.modalBackground) setInert(element, false);
+    this.onModalChange(false);
+    this.lastFocused?.focus();
+    this.lastFocused = null;
+  }
+
+  openSettings(): void {
+    this.toggle(true, "settings");
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
@@ -61,7 +111,11 @@ export class ControlCenter {
 
   private render(force: boolean): void {
     this.lastRenderAt = performance.now();
-    for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-tab]")) button.setAttribute("aria-pressed", String(button.dataset.tab === this.activeTab));
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>("[data-tab]")) {
+      const selectedTab = button.dataset.tab === this.activeTab;
+      button.setAttribute("aria-selected", String(selectedTab));
+      button.tabIndex = selectedTab ? 0 : -1;
+    }
     if (!force && this.body.matches(":focus-within")) return;
     const renderers: Record<string, () => string> = {
       ledger: () => this.renderLedger(), projects: () => this.renderProjects(), replays: () => this.renderReplays(), events: () => this.renderEvents(), settings: () => this.renderSettings(),
@@ -112,6 +166,7 @@ export class ControlCenter {
       <div class="ledger-actions"><button type="button" data-action="quiet-30">30分寝かせる</button><button type="button" data-action="quiet-clear">休止解除</button></div>
       <label class="setting-row"><span>承認待ち通知</span><input type="checkbox" data-setting="notify-approval" ${settings.attention.notifyApproval ? "checked" : ""}></label>
       <label class="setting-row"><span>完了通知</span><input type="checkbox" data-setting="notify-complete" ${settings.attention.notifyComplete ? "checked" : ""}></label>
+      <label class="setting-row"><span>明滅を減らす</span><input type="checkbox" data-setting="reduce-flash" ${settings.attention.reduceFlash ? "checked" : ""}></label>
       <label class="setting-row"><span>自動起動</span><input type="checkbox" data-setting="autostart" ${settings.autostart ? "checked" : ""}></label>
       <label class="setting-row"><span>外の天気を反映</span><input type="checkbox" data-setting="weather-enabled" ${settings.weather.enabled ? "checked" : ""}></label>
       <label class="setting-row"><span>場所名</span><input type="text" data-setting="weather-label" value="${escapeHtml(settings.weather.label)}"></label>
@@ -119,7 +174,7 @@ export class ControlCenter {
       <label class="setting-row"><span>経度</span><input type="number" step="0.0001" data-setting="weather-lon" value="${settings.weather.longitude}"></label>
       <button type="button" data-action="apply-weather">天気設定を保存</button>
       <p class="control-note">時刻は常に端末のローカル時刻を使用します。天気は任意で、位置情報権限を使わず入力した座標だけを利用します。</p>
-      <h3>リリース前TODO</h3><p class="control-note">コード署名、インストーラー配布、自動更新、セーブデータ移行試験はF3として残しています。</p>`;
+      <button type="button" data-action="play-intro">PLAYの操作案内をもう一度見る</button>`;
   }
 
   private async handleClick(event: Event): Promise<void> {
@@ -131,6 +186,11 @@ export class ControlCenter {
     if (target.dataset.action === "export-database") downloadBlob(new Blob([this.persistence.exportDatabase()], { type: "application/json" }), "token-fire-worlds.json");
     if (target.dataset.action === "quiet-30") this.settings.quietFor(30);
     if (target.dataset.action === "quiet-clear") this.settings.update({ attention: { ...this.settings.get().attention, quietUntil: 0 } });
+    if (target.dataset.action === "play-intro") {
+      this.toggle(false);
+      this.onReplayPlayIntro();
+      return;
+    }
     if (target.dataset.action === "import-pack") this.root.querySelector<HTMLInputElement>(".event-pack-input")?.click();
     if (target.dataset.action === "replay-video" || target.dataset.action === "replay-data") {
       const replay = this.world.replays.find((candidate) => candidate.id === target.dataset.replay);
@@ -151,6 +211,7 @@ export class ControlCenter {
     if (input.dataset.setting === "attention-mode") this.settings.update({ attention: { ...this.settings.get().attention, mode: input.value as AppSettings["attention"]["mode"] } });
     if (input.dataset.setting === "notify-approval") this.settings.update({ attention: { ...this.settings.get().attention, notifyApproval: (input as HTMLInputElement).checked } });
     if (input.dataset.setting === "notify-complete") this.settings.update({ attention: { ...this.settings.get().attention, notifyComplete: (input as HTMLInputElement).checked } });
+    if (input.dataset.setting === "reduce-flash") this.settings.update({ attention: { ...this.settings.get().attention, reduceFlash: (input as HTMLInputElement).checked } });
     if (input.dataset.setting === "weather-enabled") this.settings.update({ weather: { ...this.settings.get().weather, enabled: (input as HTMLInputElement).checked } });
     if (input.dataset.setting === "autostart") {
       const enabled = await this.platform.setAutostart((input as HTMLInputElement).checked);
@@ -177,6 +238,19 @@ export class ControlCenter {
     finally { input.value = ""; }
   }
 
+  private handleTabKey(event: KeyboardEvent): void {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const tabs = Array.from(this.tabs.querySelectorAll<HTMLButtonElement>("[role=tab]"));
+    const current = Math.max(0, tabs.findIndex((tab) => tab.dataset.tab === this.activeTab));
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const next = tabs[(current + direction + tabs.length) % tabs.length];
+    if (!next) return;
+    event.preventDefault();
+    this.activeTab = next.dataset.tab ?? "ledger";
+    this.render(true);
+    next.focus();
+  }
+
   private requireElement<T extends HTMLElement = HTMLElement>(selector: string): T {
     const element = this.root.querySelector<T>(selector);
     if (!element) throw new Error(`Control center element missing: ${selector}`);
@@ -187,3 +261,7 @@ export class ControlCenter {
 const metric = (label: string, value: string): string => `<div class="ledger-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 const selected = (value: string, candidate: string): string => value === candidate ? "selected" : "";
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
+const setInert = (element: HTMLElement, inert: boolean): void => {
+  element.inert = inert;
+  element.toggleAttribute("inert", inert);
+};

@@ -1,0 +1,79 @@
+{
+  "$schema": "./asset-requests.schema.json",
+  "version": 1,
+  "status": "generated",
+  "purpose": "PixiJS版の箱舞台へ統合済みのラスタ舞台美術。欠損時は同義のPixi Graphicsへ縮退する。",
+  "globalDirection": {
+    "visualStyle": [
+      "hand-painted miniature box theatre",
+      "Japanese kamishibai and peep-show paper craft",
+      "visible paper fibers, cut edges, wooden proscenium",
+      "cute industrial fantasy with dry black comedy"
+    ],
+    "constraints": [
+      "既存キャラクターを描き直さない",
+      "文字、ロゴ、透かしを入れない",
+      "正面投影で320:192の舞台座標へ合わせる",
+      "ライティング方向は左上から右下",
+      "UI、状態表示、イベント文言を画像へ焼き込まない"
+    ]
+  },
+  "files": [
+    {
+      "path": "theatre/proscenium/frame.png",
+      "role": "最前面の木製ボックスシアター枠",
+      "size": { "width": 1280, "height": 768 },
+      "alpha": true,
+      "prompt": "Front-facing handcrafted wooden box theatre proscenium, warm worn walnut, small brass nails, shallow carved trim, transparent stage opening and transparent exterior, no curtains, no text.",
+      "runtimeFallback": "PixiRenderer.drawProscenium"
+    },
+    {
+      "path": "theatre/curtains/left.png",
+      "role": "左袖の紙／布カーテン",
+      "size": { "width": 320, "height": 768 },
+      "alpha": true,
+      "prompt": "Left theatre curtain cutout, deep oxblood red paper-cloth hybrid, visible folds and scalloped paper edge, front view, transparent background, no ornaments or text.",
+      "runtimeFallback": "PixiRenderer.drawProscenium"
+    },
+    {
+      "path": "theatre/curtains/right.png",
+      "role": "右袖の紙／布カーテン",
+      "size": { "width": 320, "height": 768 },
+      "alpha": true,
+      "prompt": "Right theatre curtain cutout matching the left curtain exactly, deep oxblood red paper-cloth hybrid, visible folds and scalloped paper edge, front view, transparent background, no ornaments or text.",
+      "runtimeFallback": "PixiRenderer.drawProscenium"
+    },
+    {
+      "path": "theatre/curtains/valance.png",
+      "role": "上部の垂れ幕",
+      "size": { "width": 1280, "height": 240 },
+      "alpha": true,
+      "prompt": "Wide scalloped puppet-theatre valance matching the side curtains, oxblood paper-cloth, subtle hand-painted highlights, front view, transparent background, no crest, no logo, no text.",
+      "runtimeFallback": "PixiRenderer.drawProscenium"
+    },
+    {
+      "path": "theatre/backdrops/active-paper.png",
+      "role": "Token燃焼中の交換式背景紙",
+      "size": { "width": 1280, "height": 768 },
+      "alpha": false,
+      "prompt": "Layered paper theatre backdrop of an industrial forest at dusk, smoky aubergine sky, muted ochre hills, visible cut-paper seams, empty center-right space for a forge and characters, no characters, no factory, no fire, no text.",
+      "runtimeFallback": "PixiRenderer.drawBackdrop(active)"
+    },
+    {
+      "path": "theatre/backdrops/recovery-paper.png",
+      "role": "Chill／回復中の交換式背景紙",
+      "size": { "width": 1280, "height": 768 },
+      "alpha": false,
+      "prompt": "Layered paper theatre backdrop of a recovering forest after rain, dusty blue sky and sage-green hills, visible cut-paper seams, calm but not utopian, empty center-right space for characters and a resting forge, no characters, no factory, no text.",
+      "runtimeFallback": "PixiRenderer.drawBackdrop(chill)"
+    },
+    {
+      "path": "theatre/stage/floor.png",
+      "role": "紙人形を置く遠近付き舞台床",
+      "size": { "width": 1280, "height": 360 },
+      "alpha": true,
+      "prompt": "Trapezoid miniature theatre floor made from stained card and thin wooden slats, subtle diagonal perspective, worn hand-painted edges, front view, transparent background, no props, no text.",
+      "runtimeFallback": "PixiRenderer.drawStageFloor"
+    }
+  ]
+}

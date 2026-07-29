@@ -3,23 +3,34 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "postinstall": "node scripts/ensure-icons.mjs",
     "dev": "vite --port 1420",
-    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "npm run typecheck && vite build",
+    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
     "icons": "node scripts/ensure-icons.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
-    "@tauri-apps/plugin-autostart": "^2.0.0",
-    "@tauri-apps/plugin-global-shortcut": "^2.0.0",
-    "@tauri-apps/plugin-notification": "^2.0.0"
+    "@tauri-apps/plugin-autostart": "2.5.1",
+    "@tauri-apps/plugin-global-shortcut": "2.3.2",
+    "@tauri-apps/plugin-notification": "2.3.3",
+    "pixi.js": "8.19.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4",
-    "typescript": "5.9.3",
-    "vite": "7.3.6"
+    "@testing-library/dom": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "^4.1.10"
   }
 }

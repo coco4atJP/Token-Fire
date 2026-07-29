@@ -41,7 +41,7 @@ Token combustion model
 WorldState + WorldEvent + EnvironmentalDebt
   ├─ CharacterDirector
   ├─ EventDirector / EventPackRegistry
-  ├─ PixelRenderer / ExperienceOverlay
+  ├─ PixiRenderer / ExperienceOverlay
   ├─ AudioDirector / AttentionDirector
   ├─ ReplayRecorder / ReplayExporter
   └─ ProjectWorldPersistence

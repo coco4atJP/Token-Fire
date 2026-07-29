@@ -16,8 +16,8 @@
         "title": "Token Fire",
         "width": 560,
         "height": 350,
-        "minWidth": 300,
-        "minHeight": 190,
+        "minWidth": 380,
+        "minHeight": 240,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
@@ -34,7 +34,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "shortDescription": "Codex activity visualized as a destructive pixel diorama",
-    "longDescription": "Codex が働くほど森が燃え、止まると雨と植林で回復するドット絵デスクトップ・ジオラマ。"
+    "shortDescription": "Codex activity staged as a destructive puppet theatre",
+    "longDescription": "Codex が働くほど森が燃え、止まると雨と植林で回復するボックスシアター風デスクトップ・パペット劇。"
   }
 }
