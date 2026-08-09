@@ -29,19 +29,20 @@ app.innerHTML = `
   <main class="shell">
     <div class="drag-strip" data-tauri-drag-region></div>
     <div class="brand">TOKEN-FIRE</div>
-    <div class="toolbar">
+    <div class="toolbar" role="toolbar" aria-label="劇場操作">
       <button id="play-button" type="button" title="キャラクターを触る（P）">PLAY</button>
-      <button id="ledger-button" type="button" title="つけ帳（L）">つけ帳</button>
+      <button id="ledger-button" type="button" title="つけ帳を開く（L）">LEDGER</button>
       <button id="quiet-button" type="button" title="30分休止（Q）">QUIET</button>
       <button id="menu-button" type="button" title="劇場メニュー" aria-haspopup="menu" aria-expanded="false">MENU</button>
-      <button id="close-button" type="button" title="Trayへ隠す">×</button>
+      <button id="close-button" class="toolbar__close" type="button" title="Trayへ隠す">×</button>
     </div>
     <div class="theatre-menu" role="menu" aria-label="劇場メニュー" hidden inert>
-      <button id="sound-button" type="button" role="menuitem" title="サウンド切替">サウンド</button>
-      <button id="size-button" type="button" role="menuitem">表示サイズ</button>
-      <button id="info-button" type="button" role="menuitem">Soto Note</button>
-      <button id="settings-button" type="button" role="menuitem">設定</button>
-      <button id="source-button" type="button" role="menuitem">入力元</button>
+      <div class="theatre-menu__header" role="presentation" aria-hidden="true"><span>BACKSTAGE</span><strong>劇場メニュー</strong></div>
+      <button id="sound-button" type="button" role="menuitem" title="サウンド切替"><span>サウンド</span><small aria-hidden="true">ON</small></button>
+      <button id="size-button" type="button" role="menuitem"><span>表示サイズ</span><small aria-hidden="true">窓の大きさ</small></button>
+      <button id="info-button" type="button" role="menuitem"><span>Soto Note</span><small aria-hidden="true">現実との距離</small></button>
+      <button id="settings-button" type="button" role="menuitem"><span>設定</span><small aria-hidden="true">通知・天気</small></button>
+      <button id="source-button" type="button" role="menuitem"><span>入力元</span><small aria-hidden="true">Demoへ切替</small></button>
     </div>
     <aside class="play-guide" aria-label="PLAYの操作案内" hidden>
       <strong>舞台へ触れます</strong>
@@ -55,6 +56,7 @@ app.innerHTML = `
 `;
 
 const shell = requireElement<HTMLElement>(".shell");
+const toolbar = requireElement<HTMLElement>(".toolbar");
 const canvas = requireElement<HTMLCanvasElement>("#world");
 const playButton = requireElement<HTMLButtonElement>("#play-button");
 const ledgerButton = requireElement<HTMLButtonElement>("#ledger-button");
@@ -73,6 +75,10 @@ const connection = requireElement<HTMLSpanElement>("#connection");
 const connectionDot = requireElement<HTMLSpanElement>(".connection-dot");
 const stageLoading = requireElement<HTMLDivElement>(".stage-loading");
 const isDesktop = "__TAURI_INTERNALS__" in window;
+const setMenuMeta = (button: HTMLButtonElement, value: string): void => {
+  const meta = button.querySelector<HTMLElement>("small");
+  if (meta) meta.textContent = value;
+};
 
 let currentSource: SourceMode = "codex";
 let currentSize = 1;
@@ -81,7 +87,8 @@ const sizes = [new LogicalSize(380, 240), new LogicalSize(560, 350), new Logical
 const view: ControllerView = {
   setSourceMode(mode) {
     currentSource = mode;
-    sourceButton.textContent = mode === "codex" ? "Demoへ切替" : "Codexへ切替";
+    setMenuMeta(sourceButton, mode === "codex" ? "Demoへ切替" : "Codexへ切替");
+    sourceButton.setAttribute("aria-label", mode === "codex" ? "入力元をDemoへ切替" : "入力元をCodexへ切替");
     sourceButton.setAttribute("aria-pressed", String(mode === "demo"));
   },
   setConnectionLabel(label) {
@@ -96,6 +103,7 @@ const view: ControllerView = {
 };
 
 const settings = new SettingsStore();
+toolbar.classList.toggle("is-inviting", !settings.get().playIntroSeen);
 const platform = new PlatformBridge();
 const persistence = new BrowserWorldPersistence();
 const eventPacks = new EventPackRegistry();
@@ -112,6 +120,7 @@ const stopDirectInteraction = (): void => {
 };
 const experience = new TokenFireExperienceOverlay(shell, (open) => {
   if (open) stopDirectInteraction();
+  setSurfaceOpen(open);
 });
 const audio = new ExperienceAudioDirector(new TokenFireAudioDirector(), {
   allowEventSound: () => attention.allowEventSound(),
@@ -120,7 +129,8 @@ const audio = new ExperienceAudioDirector(new TokenFireAudioDirector(), {
 const renderer = await PixiRenderer.create(canvas, () =>
   readPresentationMotionPolicy(settings.get(), attention.isQuiet()),
 );
-stageLoading.remove();
+stageLoading.classList.add("is-opening");
+window.setTimeout(() => stageLoading.remove(), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 80 : 640);
 const controller = new AppController(
   new CodexJsonlSource(),
   renderer,
@@ -144,6 +154,7 @@ const controlCenter = new ControlCenter(
   platform,
   (open) => {
     if (open) stopDirectInteraction();
+    setSurfaceOpen(open);
   },
   () => showPlayIntro(false),
 );
@@ -158,13 +169,17 @@ controller.start();
 if (!isDesktop) {
   controller.setMode("demo");
   sourceButton.disabled = true;
-  sourceButton.textContent = "Codex · デスクトップ版で利用可能";
+  const sourceLabel = sourceButton.querySelector<HTMLElement>("span");
+  if (sourceLabel) sourceLabel.textContent = "Codex監視";
+  setMenuMeta(sourceButton, "デスクトップ版で利用可能");
+  sourceButton.setAttribute("aria-label", "Codex監視はデスクトップ版で利用可能");
   sourceButton.title = "Codex監視はデスクトップ版で利用できます";
 }
 
 const renderSoundButton = (): void => {
   soundButton.disabled = !audio.supported;
-  soundButton.textContent = audio.supported ? (audio.enabled ? "サウンド · ON" : "サウンド · OFF") : "サウンド · 利用不可";
+  setMenuMeta(soundButton, audio.supported ? (audio.enabled ? "ON" : "OFF") : "利用不可");
+  soundButton.setAttribute("aria-label", audio.supported ? `サウンド · ${audio.enabled ? "ON" : "OFF"}` : "サウンド · 利用不可");
   soundButton.setAttribute("aria-pressed", String(audio.enabled));
   soundButton.title = !audio.supported ? "この環境ではサウンドを利用できません" : audio.enabled ? "サウンドをミュート（M）" : "サウンドを有効化（M）";
 };
@@ -183,6 +198,7 @@ window.addEventListener("pointerdown", unlockAudio, { passive: true });
 window.addEventListener("keydown", unlockAudio);
 
 playButton.addEventListener("click", () => {
+  toolbar.classList.remove("is-inviting");
   const enabled = interaction?.toggle() ?? false;
   playButton.setAttribute("aria-pressed", String(enabled));
   playButton.textContent = enabled ? "DONE" : "PLAY";
@@ -205,6 +221,7 @@ sourceButton.addEventListener("click", () => {
 });
 sizeButton.addEventListener("click", async () => {
   currentSize = (currentSize + 1) % sizes.length;
+  setMenuMeta(sizeButton, `${sizes[currentSize].width} × ${sizes[currentSize].height}`);
   if ("__TAURI_INTERNALS__" in window) await getCurrentWindow().setSize(sizes[currentSize]);
 });
 infoButton.addEventListener("click", () => {
@@ -255,13 +272,18 @@ window.addEventListener("keydown", (event) => {
 });
 
 function toggleMenu(force?: boolean): void {
-  const open = force ?? menu.hidden;
+  const open = force ?? Boolean(menu.hidden);
   menu.hidden = !open;
   menu.inert = !open;
   menu.toggleAttribute("inert", !open);
   menuButton.setAttribute("aria-expanded", String(open));
+  setSurfaceOpen(open);
   if (open) menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   else if (document.activeElement && menu.contains(document.activeElement)) menuButton.focus();
+}
+
+function setSurfaceOpen(open: boolean): void {
+  shell.classList.toggle("has-overlay", open);
 }
 
 function closeMenu(): void {

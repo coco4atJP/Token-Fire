@@ -2,6 +2,7 @@ import type { AgentSnapshot } from "../domain/agent";
 import { CHARACTER_IDS, CHARACTER_LABELS, type CharacterId } from "../domain/character";
 import type { CharacterDirector } from "../domain/characterDirector";
 import { manuallyCharNearestTree, type WorldState } from "../domain/world";
+import { readWorldScene } from "../domain/worldScene";
 import { SCENE_LAYOUT, type ActorPlacement } from "./sceneLayout";
 import { StageViewport } from "./stageViewport";
 
@@ -103,7 +104,8 @@ export class InteractionController {
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
-    this.activePhase = snapshot.active || snapshot.status === "error";
+    const scene = readWorldScene(world, snapshot);
+    this.activePhase = scene !== "poka" && scene !== "meguri";
     this.root.dataset.phase = this.activePhase ? "active" : "chill";
     const viewport = StageViewport.measure(this.root);
     for (const id of CHARACTER_IDS) {

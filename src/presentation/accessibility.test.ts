@@ -30,6 +30,21 @@ describe("パネルとPLAY", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("舞台上の台詞をDOMの吊り札として可視化し、零出力では無言にする", () => {
+    const host = document.createElement("main");
+    document.body.append(host);
+    const world = createWorld();
+    const overlay = new TokenFireExperienceOverlay(host);
+    world.characters.hinoko.line = "成果欄は空白だが、炉は実によく働いた。";
+    world.characters.hinoko.until = 10;
+    overlay.update(world, { ...IDLE_SNAPSHOT, active: true, status: "working" });
+    const speech = host.querySelector<HTMLElement>(".character-speech");
+    expect(speech?.hidden).toBe(false);
+    expect(speech?.textContent).toContain("成果欄は空白");
+    overlay.update(world, { ...IDLE_SNAPSHOT, status: "error" });
+    expect(speech?.hidden).toBe(true);
+  });
+
   it("つけ帳をdialogとして開き、背景をinertにしてEscapeで復帰する", () => {
     const host = document.createElement("main");
     const trigger = document.createElement("button");

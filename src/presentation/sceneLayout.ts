@@ -18,7 +18,7 @@ export const SCENE_LAYOUT = {
   forge: { x: 240, y: 162, width: 88, height: 84 },
   lake: { x: 278, y: 145, radiusX: 37 },
   active: {
-    hinoko: { x: 191, y: 167, width: 50, height: 62 },
+    hinoko: { x: 186, y: 166, width: 48, height: 60 },
     hammer: {
       x: 181,
       y: 151,
@@ -27,9 +27,9 @@ export const SCENE_LAYOUT = {
       anchorX: 0.6,
       anchorY: 0.87,
     },
-    sumi: { x: 278, y: 166, width: 36, height: 53 },
-    crystal: { x: 289, y: 138, width: 15, height: 24 },
-    mizumo: { x: 304, y: 169, width: 42, height: 57 },
+    sumi: { x: 269, y: 165, width: 34, height: 50 },
+    crystal: { x: 280, y: 138, width: 14, height: 22 },
+    mizumo: { x: 293, y: 144, width: 25, height: 34 },
     kururi: { y: 168, width: 44, height: 49 },
     cart: { minX: 90, maxX: 126, y: 168, width: 37, height: 27 },
     logs: { y: 151, width: 28, height: 20 },
@@ -40,8 +40,8 @@ export const SCENE_LAYOUT = {
     ] satisfies SubagentPlacement[],
   },
   recovery: {
-    fuwame: { x: 226, y: 64, width: 54, height: 54 },
-    mebuki: { x: 184, y: 168, width: 42, height: 59 },
+    fuwame: { x: 243, y: 69, width: 50, height: 50 },
+    mebuki: { x: 183, y: 166, width: 40, height: 56 },
     wateringCan: {
       x: 207,
       y: 151,
@@ -50,10 +50,10 @@ export const SCENE_LAYOUT = {
       anchorX: 0.58,
       anchorY: 0.72,
     },
-    targetShrub: { x: 225, y: 168, width: 21, height: 21 },
-    hinoko: { x: 250, y: 167, width: 38, height: 48 },
-    sleepingSumi: { x: 261, y: 128, width: 23, height: 33 },
-    mizumo: { x: 286, y: 169, width: 40, height: 55 },
-    kururi: { x: 144, y: 168, width: 39, height: 45 },
+    targetShrub: { x: 224, y: 166, width: 20, height: 20 },
+    hinoko: { x: 132, y: 149, width: 25, height: 32 },
+    sleepingSumi: { x: 154, y: 148, width: 18, height: 26 },
+    mizumo: { x: 282, y: 166, width: 38, height: 52 },
+    kururi: { x: 106, y: 150, width: 27, height: 31 },
   },
 } as const;

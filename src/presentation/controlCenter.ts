@@ -12,6 +12,7 @@ export class ControlCenter {
   private readonly root: HTMLElement;
   private readonly body: HTMLElement;
   private readonly heading: HTMLElement;
+  private readonly kicker: HTMLElement;
   private readonly tabs: HTMLElement;
   private readonly modalBackground: HTMLElement[];
   private open = false;
@@ -43,7 +44,10 @@ export class ControlCenter {
     this.root.hidden = true;
     setInert(this.root, true);
     this.root.innerHTML = `
-      <header class="control-center__header"><strong id="control-center-title" tabindex="-1">つけ帳</strong><button type="button" data-action="close" aria-label="閉じる">×</button></header>
+      <header class="control-center__header">
+        <div class="control-center__title"><span class="control-center__kicker" aria-hidden="true">COMPANY LEDGER</span><strong id="control-center-title" tabindex="-1">つけ帳</strong></div>
+        <button type="button" data-action="close" aria-label="閉じる">×</button>
+      </header>
       <nav class="control-center__tabs" role="tablist" aria-label="つけ帳のページ">
         <button type="button" role="tab" data-tab="ledger">記録</button><button type="button" role="tab" data-tab="projects">事業所</button>
         <button type="button" role="tab" data-tab="replays">動作</button><button type="button" role="tab" data-tab="events">できごと</button>
@@ -55,6 +59,7 @@ export class ControlCenter {
     host.append(this.root);
     this.body = this.requireElement<HTMLElement>(".control-center__body");
     this.heading = this.requireElement<HTMLElement>("#control-center-title");
+    this.kicker = this.requireElement<HTMLElement>(".control-center__kicker");
     this.tabs = this.requireElement<HTMLElement>(".control-center__tabs");
     this.root.addEventListener("click", (event) => void this.handleClick(event));
     this.root.addEventListener("change", (event) => void this.handleChange(event));
@@ -81,6 +86,7 @@ export class ControlCenter {
     this.root.dataset.surface = this.surface;
     this.tabs.hidden = this.surface === "settings";
     this.heading.textContent = this.surface === "settings" ? "劇場外の操作卓" : "つけ帳";
+    this.kicker.textContent = this.surface === "settings" ? "OUTSIDE THE STAGE" : "COMPANY LEDGER";
     if (this.open) {
       this.lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       this.root.hidden = false;
@@ -129,8 +135,8 @@ export class ControlCenter {
     const model = this.snapshot.model ?? this.world.model ?? "未取得";
     return `
       <div class="ledger-metrics">
-        ${metric("焼却Token", metrics.totalTokensBurned.toLocaleString())}${metric("ふわっとした多さ", metrics.energyLabel)}
-        ${metric("設備", `${metrics.growthLevel + 1}/24`)}${metric("成果ゼロ", metrics.wastedTokens.toLocaleString())}${metric("現在モデル", model)}
+        ${metric("焼却Token", metrics.totalTokensBurned.toLocaleString(), "ledger-metric--primary")}${metric("ふわっとした多さ", metrics.energyLabel)}
+        ${metric("設備", `${metrics.growthLevel + 1}/24`)}${metric("成果ゼロ", metrics.wastedTokens.toLocaleString())}${metric("現在モデル", model, "ledger-metric--model")}
       </div>
       <div class="ledger-actions"><button type="button" data-action="report">環境債務報告書</button><button type="button" data-action="export-database">全事業所データ</button></div>
       <h3>最近こういうこともありました</h3>
@@ -162,19 +168,33 @@ export class ControlCenter {
   private renderSettings(): string {
     const settings = this.settings.get();
     return `
-      <label class="setting-row"><span>遊びの密度</span><select data-setting="attention-mode"><option value="calm" ${selected(settings.attention.mode, "calm")}>Calm</option><option value="balanced" ${selected(settings.attention.mode, "balanced")}>Balanced</option><option value="chaos" ${selected(settings.attention.mode, "chaos")}>Chaos</option></select></label>
-      <div class="ledger-actions"><button type="button" data-action="quiet-30">30分寝かせる</button><button type="button" data-action="quiet-clear">休止解除</button></div>
-      <label class="setting-row"><span>承認待ち通知</span><input type="checkbox" data-setting="notify-approval" ${settings.attention.notifyApproval ? "checked" : ""}></label>
-      <label class="setting-row"><span>完了通知</span><input type="checkbox" data-setting="notify-complete" ${settings.attention.notifyComplete ? "checked" : ""}></label>
-      <label class="setting-row"><span>明滅を減らす</span><input type="checkbox" data-setting="reduce-flash" ${settings.attention.reduceFlash ? "checked" : ""}></label>
-      <label class="setting-row"><span>自動起動</span><input type="checkbox" data-setting="autostart" ${settings.autostart ? "checked" : ""}></label>
-      <label class="setting-row"><span>外の天気を反映</span><input type="checkbox" data-setting="weather-enabled" ${settings.weather.enabled ? "checked" : ""}></label>
-      <label class="setting-row"><span>場所名</span><input type="text" data-setting="weather-label" value="${escapeHtml(settings.weather.label)}"></label>
-      <label class="setting-row"><span>緯度</span><input type="number" step="0.0001" data-setting="weather-lat" value="${settings.weather.latitude}"></label>
-      <label class="setting-row"><span>経度</span><input type="number" step="0.0001" data-setting="weather-lon" value="${settings.weather.longitude}"></label>
-      <button type="button" data-action="apply-weather">天気設定を保存</button>
-      <p class="control-note">時刻は常に端末のローカル時刻を使用します。天気は任意で、位置情報権限を使わず入力した座標だけを利用します。</p>
-      <button type="button" data-action="play-intro">PLAYの操作案内をもう一度見る</button>`;
+      <section class="settings-group">
+        <h3>注意と休止</h3>
+        <label class="setting-row"><span>遊びの密度</span><select data-setting="attention-mode"><option value="calm" ${selected(settings.attention.mode, "calm")}>Calm</option><option value="balanced" ${selected(settings.attention.mode, "balanced")}>Balanced</option><option value="chaos" ${selected(settings.attention.mode, "chaos")}>Chaos</option></select></label>
+        <div class="ledger-actions"><button type="button" data-action="quiet-30">30分寝かせる</button><button type="button" data-action="quiet-clear">休止解除</button></div>
+        <label class="setting-row"><span>明滅を減らす</span><input type="checkbox" data-setting="reduce-flash" ${settings.attention.reduceFlash ? "checked" : ""}></label>
+      </section>
+      <section class="settings-group">
+        <h3>通知と常駐</h3>
+        <label class="setting-row"><span>承認待ち通知</span><input type="checkbox" data-setting="notify-approval" ${settings.attention.notifyApproval ? "checked" : ""}></label>
+        <label class="setting-row"><span>完了通知</span><input type="checkbox" data-setting="notify-complete" ${settings.attention.notifyComplete ? "checked" : ""}></label>
+        <label class="setting-row"><span>自動起動</span><input type="checkbox" data-setting="autostart" ${settings.autostart ? "checked" : ""}></label>
+      </section>
+      <section class="settings-group">
+        <h3>外の天気</h3>
+        <label class="setting-row"><span>舞台へ反映</span><input type="checkbox" data-setting="weather-enabled" ${settings.weather.enabled ? "checked" : ""}></label>
+        <label class="setting-row"><span>場所名</span><input type="text" data-setting="weather-label" value="${escapeHtml(settings.weather.label)}"></label>
+        <div class="setting-coordinates">
+          <label class="setting-row"><span>緯度</span><input type="number" step="0.0001" data-setting="weather-lat" value="${settings.weather.latitude}"></label>
+          <label class="setting-row"><span>経度</span><input type="number" step="0.0001" data-setting="weather-lon" value="${settings.weather.longitude}"></label>
+        </div>
+        <button type="button" data-action="apply-weather">天気設定を保存</button>
+        <p class="control-note">時刻は端末のローカル時刻を使用します。位置情報権限は使わず、入力した座標だけを利用します。</p>
+      </section>
+      <section class="settings-group settings-group--last">
+        <h3>操作</h3>
+        <button type="button" data-action="play-intro">PLAYの操作案内をもう一度見る</button>
+      </section>`;
   }
 
   private async handleClick(event: Event): Promise<void> {
@@ -258,7 +278,7 @@ export class ControlCenter {
   }
 }
 
-const metric = (label: string, value: string): string => `<div class="ledger-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+const metric = (label: string, value: string, className = ""): string => `<div class="ledger-metric ${className}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 const selected = (value: string, candidate: string): string => value === candidate ? "selected" : "";
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 const setInert = (element: HTMLElement, inert: boolean): void => {

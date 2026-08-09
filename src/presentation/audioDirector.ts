@@ -19,7 +19,7 @@ type AudioWindow = Window & {
   webkitAudioContext?: typeof AudioContext;
 };
 
-type PlaybackGraph = {
+export type SharedPlaybackGraph = {
   context: AudioContext;
   masterGain: GainNode;
   noiseBuffer: AudioBuffer;
@@ -286,7 +286,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     }
   }
 
-  private getPlaybackGraph(): PlaybackGraph | null {
+  getSharedGraph(): SharedPlaybackGraph | null {
     if (
       !this.enabledValue ||
       !this.context ||
@@ -309,7 +309,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     volume: number,
     options: { delay?: number; type?: OscillatorType; endFrequency?: number } = {},
   ): void {
-    const graph = this.getPlaybackGraph();
+    const graph = this.getSharedGraph();
     if (!graph) return;
     const start = graph.context.currentTime + (options.delay ?? 0);
     const oscillator = graph.context.createOscillator();
@@ -329,7 +329,7 @@ export class TokenFireAudioDirector implements AudioDirector {
   }
 
   private playNoise(duration: number, volume: number, cutoff: number, delay = 0): void {
-    const graph = this.getPlaybackGraph();
+    const graph = this.getSharedGraph();
     if (!graph) return;
     const start = graph.context.currentTime + delay;
     const source = graph.context.createBufferSource();

@@ -4,10 +4,12 @@ import type { AgentSource } from "./codexClient";
 export class DemoAgentSource implements AgentSource {
   private startedAt = Date.now();
   private totalTokens = 0;
+  private lastStatus: AgentSnapshot["status"] = "idle";
 
   restart(): void {
     this.startedAt = Date.now();
     this.totalTokens = 0;
+    this.lastStatus = "idle";
   }
 
   async poll(): Promise<AgentSnapshot> {
@@ -29,7 +31,15 @@ export class DemoAgentSource implements AgentSource {
       this.totalTokens += tokenDelta;
     } else if (cycle < 31) {
       status = "completed";
+    } else if (cycle < 34) {
+      status = "error";
+      if (this.lastStatus !== "error") {
+        tokenDelta = 180;
+        this.totalTokens += tokenDelta;
+      }
     }
+
+    this.lastStatus = status;
 
     return {
       active,

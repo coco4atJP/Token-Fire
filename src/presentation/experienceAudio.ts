@@ -1,9 +1,9 @@
 import type { AgentSnapshot } from "../domain/agent";
+import type { CharacterId } from "../domain/character";
 import type { WorldState } from "../domain/world";
-import type { AudioDirector } from "./audioDirector";
+import { TokenFireAudioDirector, type AudioDirector } from "./audioDirector";
 
 const MIN_GAIN = 0.0001;
-type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 export interface ExperienceAudioPolicy {
   allowEventSound(): boolean;
@@ -19,12 +19,15 @@ export class ExperienceAudioDirector implements AudioDirector {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private chillGain: GainNode | null = null;
+  private chillFilter: BiquadFilterNode | null = null;
   private chillOscillators: OscillatorNode[] = [];
+  private chillLfo: OscillatorNode | null = null;
   private lastEventId = -1;
+  private lastCharacterLine = "";
   private disposed = false;
 
   constructor(
-    private readonly base: AudioDirector,
+    private readonly base: TokenFireAudioDirector,
     private readonly policy: ExperienceAudioPolicy = DEFAULT_POLICY,
   ) {}
 
@@ -40,14 +43,7 @@ export class ExperienceAudioDirector implements AudioDirector {
     if (this.disposed) return false;
     const baseUnlocked = await this.base.unlock();
     this.ensureGraph();
-    if (this.context?.state === "suspended") {
-      try {
-        await this.context.resume();
-      } catch {
-        return baseUnlocked;
-      }
-    }
-    return baseUnlocked || this.context?.state === "running";
+    return baseUnlocked;
   }
 
   async toggle(): Promise<boolean> {
@@ -61,11 +57,14 @@ export class ExperienceAudioDirector implements AudioDirector {
   update(world: WorldState, snapshot: AgentSnapshot): void {
     if (this.disposed) return;
     this.base.update(world, snapshot);
-    if (!this.context || !this.master || !this.chillGain) return;
+    if (!this.context || !this.master || !this.chillGain || !this.chillFilter) return;
     const now = this.context.currentTime;
     const quiet = this.policy.isQuiet();
-    const chillTarget = !snapshot.active && this.enabled && !quiet ? 0.014 + world.chill * 0.028 : MIN_GAIN;
+    const chillTarget = !snapshot.active && this.enabled && !quiet
+      ? (0.014 + world.chill * 0.028) * (1 - world.rain * 0.24)
+      : MIN_GAIN;
     this.chillGain.gain.setTargetAtTime(chillTarget, now, 0.8);
+    this.chillFilter.frequency.setTargetAtTime(520 + world.rain * 360 + world.chill * 120, now, 1.8);
     this.master.gain.setTargetAtTime(this.enabled ? (quiet ? 0.035 : 0.18) : MIN_GAIN, now, 0.2);
 
     const event = world.activeEvent;
@@ -73,12 +72,20 @@ export class ExperienceAudioDirector implements AudioDirector {
       if (this.policy.allowEventSound()) this.playEvent(event.type, event.magnitude);
       this.lastEventId = event.id;
     }
+
+    const speaker = Object.values(world.characters)
+      .filter((state) => state.line && state.until > world.elapsed)
+      .sort((left, right) => right.until - left.until)[0];
+    const speechKey = speaker?.line ? `${speaker.id}:${speaker.line}` : "";
+    if (speechKey && speechKey !== this.lastCharacterLine && this.policy.allowEventSound() && !quiet) {
+      this.playVoiceBlip(speaker.id, speaker.line?.length ?? 0);
+    }
+    this.lastCharacterLine = speechKey;
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.base.dispose();
     for (const oscillator of this.chillOscillators) {
       try {
         oscillator.stop();
@@ -86,23 +93,29 @@ export class ExperienceAudioDirector implements AudioDirector {
         // Node may already be stopped.
       }
     }
+    try {
+      this.chillLfo?.stop();
+    } catch {
+      // Node may already be stopped.
+    }
     this.chillOscillators = [];
-    void this.context?.close();
+    this.chillLfo = null;
+    this.master?.disconnect();
+    this.base.dispose();
     this.context = null;
     this.master = null;
     this.chillGain = null;
+    this.chillFilter = null;
   }
 
   private ensureGraph(): void {
     if (this.context || this.disposed || !this.supported) return;
-    const audioWindow = window as AudioWindow;
-    const Context = window.AudioContext || audioWindow.webkitAudioContext;
-    if (!Context) return;
-
-    const context = new Context();
+    const shared = this.base.getSharedGraph();
+    if (!shared) return;
+    const context = shared.context;
     const master = context.createGain();
     master.gain.value = this.enabled ? 0.18 : MIN_GAIN;
-    master.connect(context.destination);
+    master.connect(shared.masterGain);
 
     const filter = context.createBiquadFilter();
     filter.type = "lowpass";
@@ -124,11 +137,21 @@ export class ExperienceAudioDirector implements AudioDirector {
       oscillator.start();
       return oscillator;
     });
+    const lfo = context.createOscillator();
+    const lfoDepth = context.createGain();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.075;
+    lfoDepth.gain.value = 210;
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(filter.frequency);
+    lfo.start();
 
     this.context = context;
     this.master = master;
     this.chillGain = chillGain;
+    this.chillFilter = filter;
     this.chillOscillators = oscillators;
+    this.chillLfo = lfo;
   }
 
   private syncMaster(): void {
@@ -167,6 +190,22 @@ export class ExperienceAudioDirector implements AudioDirector {
         break;
       default:
         this.tone(180 + Math.min(220, magnitude / 3), 0.15, 0.03, "triangle");
+    }
+  }
+
+  private playVoiceBlip(id: CharacterId, length: number): void {
+    const base = {
+      hinoko: 420,
+      mebuki: 560,
+      fuwame: 680,
+      sumi: 760,
+      mizumo: 510,
+      kururi: 330,
+    }[id];
+    const syllables = Math.max(2, Math.min(4, Math.round(length / 9)));
+    for (let index = 0; index < syllables; index += 1) {
+      const step = index % 3 === 1 ? 1.12 : index % 3 === 2 ? 0.94 : 1;
+      this.tone(base * step, 0.055, 0.018, id === "sumi" ? "square" : "triangle", base * step * 1.035, index * 0.065);
     }
   }
 

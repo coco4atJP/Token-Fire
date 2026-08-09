@@ -1,6 +1,9 @@
 import type { AgentSnapshot } from "../domain/agent";
-import { CHARACTER_IDS, CHARACTER_LABELS } from "../domain/character";
-import type { WorldState } from "../domain/world";
+import { CHARACTER_IDS, CHARACTER_LABELS, type CharacterId } from "../domain/character";
+import { getWorldMetrics, type WorldState } from "../domain/world";
+import { readWorldScene, WORLD_SCENE_LABELS } from "../domain/worldScene";
+import { SCENE_LAYOUT, type ActorPlacement } from "./sceneLayout";
+import { StageViewport } from "./stageViewport";
 
 export interface ExperiencePresenter {
   update(world: WorldState, snapshot: AgentSnapshot): void;
@@ -8,11 +11,19 @@ export interface ExperiencePresenter {
 }
 
 /**
- * 舞台の視覚情報はPixiへ一本化し、DOMは読み上げとSoto Noteの操作だけを担当する。
+ * 高解像度の文字、読み上げ、Soto Noteを担当するDOM表現。
+ * 世界の場面判定はdomainのWorldSceneを受け取り、ここでは再定義しない。
  */
 export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly root: HTMLDivElement;
   private readonly announcer: HTMLDivElement;
+  private readonly ticker: HTMLElement;
+  private readonly tickerTitle: HTMLElement;
+  private readonly tickerLine: HTMLElement;
+  private readonly speech: HTMLElement;
+  private readonly speechName: HTMLElement;
+  private readonly speechLine: HTMLElement;
+  private readonly ceremonyStamp: HTMLElement;
   private readonly realityDialog: HTMLElement;
   private readonly realityHeading: HTMLHeadingElement;
   private readonly modalBackground: HTMLElement[];
@@ -28,6 +39,15 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root.className = "experience-layer";
     this.root.innerHTML = `
       <div class="sr-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="stage-copy" aria-hidden="true">
+        <section class="stage-ticker">
+          <strong></strong><span></span>
+        </section>
+        <aside class="character-speech" hidden>
+          <b></b><span></span>
+        </aside>
+        <div class="ceremony-stamp" hidden><span>HIBANA WORKS</span><strong>SUSTAINABLE*</strong></div>
+      </div>
       <section class="reality-check" role="dialog" aria-modal="true" aria-labelledby="reality-check-title" hidden inert>
         <button class="reality-check__close" type="button" aria-label="Soto Noteを閉じる">×</button>
         <div class="reality-check__eyebrow">SOTO NOTE · REALITY CHECK</div>
@@ -40,6 +60,13 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.modalBackground = Array.from(host.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
     host.append(this.root);
     this.announcer = this.requireElement(".sr-announcer");
+    this.ticker = this.requireElement(".stage-ticker");
+    this.tickerTitle = this.requireElement(".stage-ticker strong");
+    this.tickerLine = this.requireElement(".stage-ticker span");
+    this.speech = this.requireElement(".character-speech");
+    this.speechName = this.requireElement(".character-speech b");
+    this.speechLine = this.requireElement(".character-speech span");
+    this.ceremonyStamp = this.requireElement(".ceremony-stamp");
     this.realityDialog = this.requireElement(".reality-check");
     setInert(this.realityDialog, true);
     this.realityHeading = this.requireElement("#reality-check-title");
@@ -51,10 +78,22 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
     const event = world.activeEvent;
+    const scene = readWorldScene(world, snapshot);
+    const metrics = getWorldMetrics(world);
     const speaker = CHARACTER_IDS
       .map((id) => world.characters[id])
       .filter((state) => state.line && state.until > world.elapsed)
       .sort((left, right) => right.until - left.until)[0];
+    const agents = snapshot.activeSessions === 1 ? "AGENT" : "AGENTS";
+    this.root.dataset.scene = scene;
+    this.ticker.dataset.tone = event?.tone ?? scene;
+    this.ticker.dataset.sceneLabel = scene.replace("-", " ").toUpperCase();
+    this.tickerTitle.textContent = event?.title ?? WORLD_SCENE_LABELS[scene];
+    this.tickerLine.textContent = event?.line ?? (snapshot.active
+      ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} ${agents} · +${snapshot.tokenDelta} TOK`
+      : `RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}% · TREE ${metrics.livingTrees}`);
+    this.ceremonyStamp.hidden = scene !== "kirari";
+    this.updateSpeech(world, snapshot, scene === "zero-output" ? null : speaker?.id ?? null);
     const important = snapshot.tool === "approval_review" || snapshot.status === "error" || snapshot.status === "completed";
     const message = snapshot.tool === "approval_review"
       ? "承認待ちです。工場が経営者の判断を待っています。"
@@ -72,6 +111,47 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.announcer.textContent = message;
       this.lastAnnouncement = message;
     }
+  }
+
+  private updateSpeech(world: WorldState, snapshot: AgentSnapshot, id: CharacterId | null): void {
+    if (!id) {
+      this.speech.hidden = true;
+      return;
+    }
+    const state = world.characters[id];
+    const placement = this.characterPlacement(id, world, snapshot.active || snapshot.status === "error");
+    if (!state.line || !placement) {
+      this.speech.hidden = true;
+      return;
+    }
+    const viewport = StageViewport.measure(this.root);
+    const anchor = viewport.project({
+      x: Math.max(76, Math.min(244, placement.x)),
+      y: Math.max(48, placement.y - placement.height + 3),
+    });
+    this.speech.style.left = `${anchor.x}px`;
+    this.speech.style.top = `${anchor.y}px`;
+    this.speech.dataset.character = id;
+    this.speechName.textContent = CHARACTER_LABELS[id];
+    this.speechLine.textContent = state.line;
+    this.speech.hidden = false;
+  }
+
+  private characterPlacement(id: CharacterId, world: WorldState, active: boolean): ActorPlacement | null {
+    if (active) {
+      if (id === "hinoko" || id === "sumi" || id === "mizumo") return SCENE_LAYOUT.active[id];
+      if (id === "kururi") {
+        const route = SCENE_LAYOUT.active.cart.maxX - SCENE_LAYOUT.active.cart.minX;
+        const phase = (world.elapsed * 6.1) % (route * 2);
+        const cartX = SCENE_LAYOUT.active.cart.minX + (phase <= route ? phase : route * 2 - phase);
+        return { ...SCENE_LAYOUT.active.kururi, x: cartX + (phase <= route ? 31 : -13) };
+      }
+      return null;
+    }
+    if (id === "fuwame") return { ...SCENE_LAYOUT.recovery.fuwame, x: SCENE_LAYOUT.recovery.fuwame.x + world.interaction.fuwameOffsetX };
+    if (id === "sumi") return SCENE_LAYOUT.recovery.sleepingSumi;
+    if (id === "hinoko" || id === "mebuki" || id === "mizumo" || id === "kururi") return SCENE_LAYOUT.recovery[id];
+    return null;
   }
 
   toggleRealityCheck(force?: boolean): void {

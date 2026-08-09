@@ -59,7 +59,6 @@ export class AppController {
   start(): void {
     if (this.stopped) return;
     this.view.setSourceMode(this.sourceMode);
-    void this.audio.unlock();
     this.animationFrame = requestAnimationFrame(this.tick);
   }
 

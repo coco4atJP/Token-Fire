@@ -137,6 +137,8 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - 内部の大分類`factoryTier`は6成長段階ごとの4区分だが、体験の主役にはしない
 - 工場Milestoneは4成長段階ごとに控えめな文言で出す
 - 成長通知、解除演出、進捗バーを前面へ出さない
+- 舞台では配管、計器、タンク、足場、煙突、通気設備を段階的に足し、炉画像そのものを急に差し替えない
+- `combustionPulse`は炉の発光と燃料流入の瞬間表現へ使い、Token会計には逆流させない
 
 ## D-009 — 直接操作はPLAY中だけ、ジオラマ内部だけで行う
 
@@ -204,7 +206,8 @@ Countdown速度と次回Timerの両方へMode倍率を反映しているため�
 
 - `prefers-reduced-motion`またはQuietではPixiの揺れを停止し、粒子と明滅を抑える
 - Calmでは揺れを縮小し、非重要粒子とイベント密度を抑える
-- Reduce FlashではErrorを含む点滅を固定表示へ変える
+- Errorは赤い全面点滅ではなく、作業員が無言でTsukechoを見る`ZERO OUTPUT`場面にする
+- Reduce Flashでは式典や燃焼を含む非必須の明滅を固定表示へ変える
 - これらはRendererの表現量だけを変え、Token会計、`WorldEvent`発生条件、森林状態の更新を変えない
 
 ## D-012 — 外気天気は任意の手入力座標だけを使う
