@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-09",
+  "generator": "OpenAI built-in ImageGen",
+  "useCase": "logo-brand",
+  "references": [
+    "references/world-character-exploration.png",
+    "references/desktop-diorama-mockup.png"
+  ],
+  "prompt": "Create an original Token-Fire production desktop app icon on a square 1024×1024 canvas. Use the references only for world art direction; do not reproduce their text, layouts, mascots, or existing logo. Center one large warm brass Token ring with a small vivid orange layered-paper flame rising inside it. Place it against an opaque edge-to-edge dark scorched-brown wooden miniature box-theatre backdrop. Use hand-painted Japanese kamishibai game art, visible paper fibers and worn wood grain, a chunky silhouette readable at 16–32 px, strong light/dark separation, and a restrained umber, aged brass, amber, orange-red, and cream palette. Keep all corners opaque. No words, letters, numbers, people, animals, mascots, UI, badges, extra tokens, smoke, watermark, signature, third-party marks, busy scenery, photorealism, glossy 3D mockup, or baked rounded-square mask."
+}

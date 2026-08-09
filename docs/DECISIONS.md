@@ -342,7 +342,7 @@ PixiJSを表示スタックの標準とする。
 - PixiJS、DOM Canvas、Textureのロードと破棄は`presentation`で完結する
 - `WorldState`と`WorldEvent`は描画技術を知らない
 - 生成PNGが欠けた場合は`SpriteAtlas`が`sprites.svg`の同義frameへ縮退する
-- 舞台用の追加画像候補は`public/assets/token-fire/asset-requests.json`へ記録し、未生成でも`Graphics`で動作する
+- 舞台・環境・可動小物の生成画像契約は`public/assets/token-fire/asset-requests.json`へ記録し、未生成でも`Graphics`または`sprites.svg`で動作する
 
 ### 外観
 
@@ -350,6 +350,9 @@ PixiJSを表示スタックの標準とする。
 箱舞台はカメラと外枠、交換式背景紙は森・工場・庭園、浅いジオラマは接地・照明・奥行きを担う。
 地上キャラクターと可動小物は下からの操作棒、Fuwame・雨・空中物だけは吊り糸で扱う。
 操業と回復の背景紙、舞台床、幕、木枠は生成Assetを使用し、欠損時だけ同義の`Graphics`へ縮退する。
+背景紙へ炉・湖・キャラクターを焼き込まず、24段階の工場成長と世界状態は前景Sprite／Graphicsだけで表現する。
+ハンマー、じょうろ、Token結晶、荷車、丸太、低木、滝は生成PNGを優先し、欠損時は同義のSVG frameへ縮退する。
+大量に反復する炎、煙、火花、雨滴、Token粒子は、起動時Texture量と描画密度を抑えるため軽量SVGのまま維持する。
 キャラクターの可愛さと環境破壊の非情さは従来どおり`WorldEvent`の意味から受け取る。
 
 ### 既定値と副作用
@@ -358,6 +361,7 @@ PixiJSを表示スタックの標準とする。
 - Renderer preference: WebGL
 - Device Pixel Ratio上限: 2
 - 論理舞台: 320×192
+- 可動小物PNG: 256×256、透過、下中央アンカー向け。生成時の512px作業画像から縮小する
 - Window下限: 380×240。自由リサイズは維持し、自動拡大しない
 - Pixi内の状態札を唯一の視覚HUDとし、イベント中は同じ札の内容を差し替える
 - DOMは単一の読み上げ領域と操作面を担当し、視覚HUDを重複させない

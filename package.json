@@ -9,11 +9,12 @@
   },
   "scripts": {
     "postinstall": "node scripts/ensure-icons.mjs",
+    "assets:check": "node scripts/validate-assets.mjs",
     "dev": "vite --port 1420",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "npm run typecheck && vite build",
-    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
+    "check": "npm run assets:check && npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
     "icons": "node scripts/ensure-icons.mjs",
     "tauri": "tauri"

@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,8 +6,9 @@ import { execFileSync } from "node:child_process";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const iconsDir = join(root, "src-tauri", "icons");
-const sourceIcon = join(iconsDir, "icon.png");
+const sourceIcon = join(root, "art-source", "token-fire", "app-icon.png");
 const required = [
+  "icon.png",
   "32x32.png",
   "128x128.png",
   "128x128@2x.png",
@@ -16,10 +17,14 @@ const required = [
 ];
 
 if (!existsSync(sourceIcon)) {
-  throw new Error(`Token-Fire icon source is missing: ${sourceIcon}`);
+  throw new Error(`Token-Fire 1024px icon source is missing: ${sourceIcon}`);
 }
 
-if (required.every((name) => existsSync(join(iconsDir, name)))) {
+const sourceModifiedAt = statSync(sourceIcon).mtimeMs;
+if (required.every((name) => {
+  const path = join(iconsDir, name);
+  return existsSync(path) && statSync(path).mtimeMs >= sourceModifiedAt;
+})) {
   process.exit(0);
 }
 

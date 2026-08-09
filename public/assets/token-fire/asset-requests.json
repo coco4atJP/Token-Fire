@@ -1,8 +1,8 @@
 {
   "$schema": "./asset-requests.schema.json",
-  "version": 1,
+  "version": 2,
   "status": "generated",
-  "purpose": "PixiJS版の箱舞台へ統合済みのラスタ舞台美術。欠損時は同義のPixi Graphicsへ縮退する。",
+  "purpose": "PixiJS版の箱舞台へ統合済みのラスタ舞台美術・環境・可動小物。欠損時は同義のPixi GraphicsまたはSVG Atlasへ縮退する。",
   "globalDirection": {
     "visualStyle": [
       "hand-painted miniature box theatre",
@@ -15,7 +15,9 @@
       "文字、ロゴ、透かしを入れない",
       "正面投影で320:192の舞台座標へ合わせる",
       "ライティング方向は左上から右下",
-      "UI、状態表示、イベント文言を画像へ焼き込まない"
+      "UI、状態表示、イベント文言を画像へ焼き込まない",
+      "背景紙の中央から右下へ工場、湖、キャラクターを焼き込まない",
+      "透過小物は外部影を含めず、下中央アンカーで接地できる余白にする"
     ]
   },
   "files": [
@@ -64,7 +66,7 @@
       "role": "Chill／回復中の交換式背景紙",
       "size": { "width": 1280, "height": 768 },
       "alpha": false,
-      "prompt": "Layered paper theatre backdrop of a recovering forest after rain, dusty blue sky and sage-green hills, visible cut-paper seams, calm but not utopian, empty center-right space for characters and a resting forge, no characters, no factory, no text.",
+      "prompt": "Layered paper theatre backdrop of a partially recovering forest after rain, dusty blue sky and sage-green hills with a few scorched stumps and muddy traces, visible cut-paper seams, calm but not utopian, low-contrast empty center-right space for a lake, characters, and a resting forge, no river, waterfall, characters, factory, text, or celebration.",
       "runtimeFallback": "PixiRenderer.drawBackdrop(chill)"
     },
     {
@@ -74,6 +76,102 @@
       "alpha": true,
       "prompt": "Trapezoid miniature theatre floor made from stained card and thin wooden slats, subtle diagonal perspective, worn hand-painted edges, front view, transparent background, no props, no text.",
       "runtimeFallback": "PixiRenderer.drawStageFloor"
+    },
+    {
+      "path": "environment/forge-active.png",
+      "role": "Token燃焼中の基準炉",
+      "size": { "width": 512, "height": 501 },
+      "alpha": true,
+      "prompt": "Single compact Token forge with a rounded iron furnace, warm brass fittings, asymmetric pipes and a bright orange fire door, hand-painted storybook game prop, transparent background, no floor, shadow, smoke, character, or text.",
+      "runtimeFallback": "sprites.svg#forgeActive"
+    },
+    {
+      "path": "environment/forge-recovery.png",
+      "role": "同じ基準炉の冷却・Chill状態",
+      "size": { "width": 512, "height": 512 },
+      "alpha": true,
+      "prompt": "Preserve the active Token forge silhouette, chassis, and pipe placement exactly; show the same machine cooling with a mostly closed door, faint amber embers, condensation, soot, light rust, and only a trace of moss, hand-painted storybook game prop, transparent background, no floor, shadow, smoke, character, or text.",
+      "runtimeFallback": "sprites.svg#forgeRecovery"
+    },
+    {
+      "path": "environment/tree-healthy.png",
+      "role": "燃焼前の森林在庫",
+      "size": { "width": 512, "height": 512 },
+      "alpha": true,
+      "prompt": "Single healthy broadleaf forest tree, readable hand-painted storybook silhouette, transparent background, no floor, shadow, character, or text.",
+      "runtimeFallback": "sprites.svg#treeHealthy"
+    },
+    {
+      "path": "environment/tree-scorched.png",
+      "role": "燃焼後の焦げ木",
+      "size": { "width": 365, "height": 512 },
+      "alpha": true,
+      "prompt": "Single tall scorched tree with a blackened trunk and contained ember cracks, readable hand-painted storybook silhouette, transparent background, no external flame, floor, shadow, character, or text.",
+      "runtimeFallback": "sprites.svg#treeScorched"
+    },
+    {
+      "path": "environment/tree-recovery.png",
+      "role": "回復途中の森林在庫",
+      "size": { "width": 442, "height": 512 },
+      "alpha": true,
+      "prompt": "Single recovering tree mixing old scorch traces with restrained new leaves, readable hand-painted storybook silhouette, transparent background, no magical reward glow, floor, shadow, character, or text.",
+      "runtimeFallback": "sprites.svg#treeRecovery"
+    },
+    {
+      "path": "environment/shrub.png",
+      "role": "回復中の低木モジュール",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single compact sage-green shrub with only a few tiny flowers, matching the Token-Fire hand-painted paper-cut game art, front-facing three-quarter view, transparent background, no floor, shadow, text, or extra props.",
+      "runtimeFallback": "sprites.svg#shrub"
+    },
+    {
+      "path": "environment/waterfall.png",
+      "role": "湖へ流れ込む短い滝モジュール",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single short waterfall module flowing through a small stack of mossy stones, opaque gouache and layered paper treatment matching Token-Fire, front-facing three-quarter view, transparent background, no floor plane, shadow, text, pond, or extra scenery.",
+      "runtimeFallback": "sprites.svg#waterfall"
+    },
+    {
+      "path": "props/hammer.png",
+      "role": "Hinokoが炉を叩く大型ハンマー",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single chunky dark iron Token hammer preserving the reference prop identity: battered beveled head, riveted steel straps, amber brass Token medallion, warm wooden handle and brass fittings, hand-painted storybook game prop, front-facing three-quarter view, transparent background, no floor, shadow, character, text, or extra tool.",
+      "runtimeFallback": "sprites.svg#hammer"
+    },
+    {
+      "path": "props/watering-can.png",
+      "role": "Mebukiの植林用じょうろ",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single green metal watering can preserving the reference prop identity, leaf emblem, rounded handle and perforated spout, hand-painted storybook game prop, front-facing three-quarter view, transparent background, no water, floor, shadow, character, text, or extra prop.",
+      "runtimeFallback": "sprites.svg#wateringCan"
+    },
+    {
+      "path": "props/token-crystal.png",
+      "role": "Sumiが炉へ投入するToken結晶",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single upright faceted Token crystal preserving the reference prop identity, flame-like polygonal silhouette, orange, amber, red-orange and pale yellow facets, chunky hand-painted paper-cut game prop, transparent background, no aura, particles, holder, floor, shadow, character, text, or extra gem.",
+      "runtimeFallback": "sprites.svg#tokenCrystal"
+    },
+    {
+      "path": "props/log-cart.png",
+      "role": "伐採木を運ぶ小型荷車",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single compact wooden logging cart preserving the reference prop identity, chunky plank box, iron brackets, one readable wheel and tow handle, hand-painted storybook game prop, front-facing three-quarter view, transparent background, no logs, rail, floor, shadow, character, text, or extra cart.",
+      "runtimeFallback": "sprites.svg#logCart"
+    },
+    {
+      "path": "props/logs.png",
+      "role": "荷車へ積む伐採丸太",
+      "size": { "width": 256, "height": 256 },
+      "alpha": true,
+      "prompt": "Single tied stack of three freshly cut brown logs preserving the reference prop identity, visible growth rings and bark, hand-painted storybook game prop, front-facing three-quarter view, transparent background, no cart, floor, shadow, character, text, or extra stack.",
+      "runtimeFallback": "sprites.svg#logs"
     }
   ]
 }

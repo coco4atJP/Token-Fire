@@ -90,6 +90,7 @@ Tauri window + Tray + Notification + localStorage
 
 ## 検証
 
+- `npm run assets:check`で生成PNGの存在、寸法、透過、重複、1024pxアイコン原稿とTauri派生アイコンを検査
 - TypeScript/Vite本番ビルド
 - PixiJS WebGL描画とReplay書き出し
 - Rust/Tauri `cargo check`
