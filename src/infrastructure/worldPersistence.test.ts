@@ -58,12 +58,21 @@ describe("v3保存互換", () => {
     expect(normalized.discoveries).not.toHaveProperty("cinder-feast");
   });
 
-  it("旧settings.v1へPLAY案内既読の既定値を補う", () => {
+  it("旧settings.v1へ案内既読の既定値を補う", () => {
     localStorage.setItem("token-fire.settings.v1", JSON.stringify({ autostart: true, attention: { mode: "calm" } }));
     const settings = new SettingsStore().get();
     expect(settings.autostart).toBe(true);
     expect(settings.playIntroSeen).toBe(false);
+    expect(settings.openingBriefingSeen).toBe(false);
     expect(settings.attention.mode).toBe("calm");
     expect(settings.attention.reduceFlash).toBe(DEFAULT_SETTINGS.attention.reduceFlash);
+  });
+
+  it("旧PLAY案内が既読なら新しい初回説明も既読として移行する", () => {
+    localStorage.setItem("token-fire.settings.v1", JSON.stringify({ playIntroSeen: true }));
+    const settings = new SettingsStore().get();
+    expect(settings.playIntroSeen).toBe(true);
+    expect(settings.openingBriefingSeen).toBe(true);
+    expect(localStorage.getItem("token-fire.settings.v2")).toBeNull();
   });
 });

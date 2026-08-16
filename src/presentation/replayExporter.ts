@@ -7,6 +7,45 @@ import { StageViewport, STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
 const REPLAY_WIDTH = 960;
 const REPLAY_HEIGHT = 540;
 
+/**
+ * ReplaySessionの保存形式は変えず、帳簿を開いた時だけ代表場面を選ぶ。
+ * 未完了は最後に残った現場、完了済みは相対Energyが最大の場面を採用する。
+ */
+export const selectReplayRepresentativeFrame = (replay: ReplaySession): ReplayFrame | null => {
+  if (replay.frames.length === 0) return null;
+  if (replay.wasted) return replay.frames.at(-1) ?? null;
+  return replay.frames.reduce((selected, frame) => {
+    const selectedScore = [selected.energyLevel, selected.heat, selected.pollution, selected.taskTokens];
+    const frameScore = [frame.energyLevel, frame.heat, frame.pollution, frame.taskTokens];
+    for (let index = 0; index < frameScore.length; index += 1) {
+      if (frameScore[index] > selectedScore[index]) return frame;
+      if (frameScore[index] < selectedScore[index]) return selected;
+    }
+    return selected;
+  });
+};
+
+export const readReplayFrameProgress = (replay: ReplaySession, frame: ReplayFrame): number => {
+  const durationSeconds = Math.max(1, (replay.endedAt - replay.startedAt) / 1_000);
+  return Math.max(0, Math.min(1, frame.t / durationSeconds));
+};
+
+export const renderReplayThumbnail = async (replay: ReplaySession): Promise<string | null> => {
+  const frame = selectReplayRepresentativeFrame(replay);
+  if (!frame) return null;
+  const canvas = document.createElement("canvas");
+  let stage: ReplayStage | null = null;
+  try {
+    stage = await ReplayStage.create(canvas, 320, 180);
+    stage.render(replay, frame, readReplayFrameProgress(replay, frame));
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  } finally {
+    stage?.dispose();
+  }
+};
+
 export const exportReplayData = (replay: ReplaySession): void => {
   downloadBlob(new Blob([JSON.stringify(replay, null, 2)], { type: "application/json" }), `${safeName(replay.title)}.token-fire.json`);
 };
@@ -76,8 +115,10 @@ class ReplayStage {
   private constructor(
     private readonly app: Application,
     private readonly atlas: SpriteAtlas,
+    width: number,
+    height: number,
   ) {
-    const viewport = new StageViewport(REPLAY_WIDTH, REPLAY_HEIGHT);
+    const viewport = new StageViewport(width, height);
     this.root.scale.set(viewport.scale);
     this.root.position.set(viewport.offsetX, viewport.offsetY);
     this.background = sprite(atlas, "backdropRecovery", STAGE_WIDTH / 2, STAGE_HEIGHT, STAGE_WIDTH, STAGE_HEIGHT);
@@ -102,12 +143,12 @@ class ReplayStage {
     this.app.stage.addChild(this.root);
   }
 
-  static async create(canvas: HTMLCanvasElement): Promise<ReplayStage> {
+  static async create(canvas: HTMLCanvasElement, width = REPLAY_WIDTH, height = REPLAY_HEIGHT): Promise<ReplayStage> {
     const app = new Application();
     await app.init({
       canvas,
-      width: REPLAY_WIDTH,
-      height: REPLAY_HEIGHT,
+      width,
+      height,
       antialias: true,
       autoStart: false,
       backgroundAlpha: 1,
@@ -115,7 +156,7 @@ class ReplayStage {
       resolution: 1,
     });
     app.ticker.stop();
-    return new ReplayStage(app, await SpriteAtlas.load());
+    return new ReplayStage(app, await SpriteAtlas.load(), width, height);
   }
 
   render(replay: ReplaySession, frame: ReplayFrame, progress: number): void {

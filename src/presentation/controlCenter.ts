@@ -5,8 +5,11 @@ import { getWorldMetrics, type WorldState } from "../domain/world";
 import type { PlatformBridge } from "../infrastructure/platformBridge";
 import type { SettingsStore } from "../infrastructure/settingsStore";
 import type { WorldPersistence } from "../infrastructure/worldPersistence";
-import { downloadBlob, exportReplayData, exportReplayVideo } from "./replayExporter";
+import { downloadBlob, exportReplayData, exportReplayVideo, renderReplayThumbnail } from "./replayExporter";
 import { exportEnvironmentalDebtReport } from "./reportGenerator";
+import { trapTabKey } from "./focusTrap";
+
+const FACTORY_ACTS = ["小さな町工場", "増設開始", "配管迷宮", "煙突群", "過剰設備", "説明をあきらめる規模"] as const;
 
 export class ControlCenter {
   private readonly root: HTMLElement;
@@ -22,6 +25,7 @@ export class ControlCenter {
   private lastRenderAt = 0;
   private world: WorldState;
   private snapshot: AgentSnapshot;
+  private readonly replayThumbnailCache = new Map<string, Promise<string | null>>();
 
   constructor(
     host: HTMLElement,
@@ -45,14 +49,14 @@ export class ControlCenter {
     setInert(this.root, true);
     this.root.innerHTML = `
       <header class="control-center__header">
-        <div class="control-center__title"><span class="control-center__kicker" aria-hidden="true">COMPANY LEDGER</span><strong id="control-center-title" tabindex="-1">つけ帳</strong></div>
+        <div class="control-center__title"><span class="control-center__kicker" aria-hidden="true">HIBANA WORKS · COMPANY LEDGER</span><strong id="control-center-title" tabindex="-1">ひばな工房 つけ帳</strong></div>
         <button type="button" data-action="close" aria-label="閉じる">×</button>
       </header>
       <nav class="control-center__tabs" role="tablist" aria-label="つけ帳のページ">
-        <button type="button" role="tab" data-tab="ledger">記録</button><button type="button" role="tab" data-tab="projects">事業所</button>
-        <button type="button" role="tab" data-tab="replays">動作</button><button type="button" role="tab" data-tab="events">できごと</button>
+        <button type="button" role="tab" aria-controls="control-center-panel" data-tab="ledger">伝票</button><button type="button" role="tab" aria-controls="control-center-panel" data-tab="projects">台帳</button>
+        <button type="button" role="tab" aria-controls="control-center-panel" data-tab="replays">映写券</button><button type="button" role="tab" aria-controls="control-center-panel" data-tab="events">切り抜き</button>
       </nav>
-      <div class="control-center__body" role="tabpanel"></div>
+      <div id="control-center-panel" class="control-center__body" role="tabpanel"></div>
       <input class="event-pack-input" type="file" accept="application/json,.json" hidden>
     `;
     this.modalBackground = Array.from(host.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
@@ -66,7 +70,10 @@ export class ControlCenter {
     this.root.querySelector<HTMLInputElement>(".event-pack-input")?.addEventListener("change", (event) => void this.importPack(event));
     this.tabs.addEventListener("keydown", (event) => this.handleTabKey(event));
     this.root.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") this.toggle(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.toggle(false);
+      } else trapTabKey(this.root, event);
     });
   }
 
@@ -75,6 +82,7 @@ export class ControlCenter {
     if (nextOpen && this.open && surface !== this.surface) {
       this.surface = surface;
       this.activeTab = surface === "settings" ? "settings" : "ledger";
+      this.applySurfaceCopy();
       this.render(true);
       return;
     }
@@ -83,10 +91,7 @@ export class ControlCenter {
     this.surface = surface;
     this.activeTab = surface === "settings" ? "settings" : "ledger";
     this.root.classList.toggle("is-open", this.open);
-    this.root.dataset.surface = this.surface;
-    this.tabs.hidden = this.surface === "settings";
-    this.heading.textContent = this.surface === "settings" ? "劇場外の操作卓" : "つけ帳";
-    this.kicker.textContent = this.surface === "settings" ? "OUTSIDE THE STAGE" : "COMPANY LEDGER";
+    this.applySurfaceCopy();
     if (this.open) {
       this.lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       this.root.hidden = false;
@@ -109,6 +114,13 @@ export class ControlCenter {
     this.toggle(true, "settings");
   }
 
+  private applySurfaceCopy(): void {
+    this.root.dataset.surface = this.surface;
+    this.tabs.hidden = this.surface === "settings";
+    this.heading.textContent = this.surface === "settings" ? "劇場外の操作卓" : "ひばな工房 つけ帳";
+    this.kicker.textContent = this.surface === "settings" ? "OUTSIDE THE STAGE" : "COMPANY LEDGER";
+  }
+
   update(world: WorldState, snapshot: AgentSnapshot): void {
     this.world = world;
     this.snapshot = snapshot;
@@ -123,10 +135,13 @@ export class ControlCenter {
       button.tabIndex = selectedTab ? 0 : -1;
     }
     if (!force && this.body.matches(":focus-within")) return;
+    const previousScrollTop = force ? 0 : this.body.scrollTop;
     const renderers: Record<string, () => string> = {
       ledger: () => this.renderLedger(), projects: () => this.renderProjects(), replays: () => this.renderReplays(), events: () => this.renderEvents(), settings: () => this.renderSettings(),
     };
     this.body.innerHTML = (renderers[this.activeTab] ?? renderers.ledger)();
+    if (!force) this.body.scrollTop = previousScrollTop;
+    if (this.activeTab === "replays") void this.hydrateReplayThumbnails();
   }
 
   private renderLedger(): string {
@@ -134,25 +149,27 @@ export class ControlCenter {
     const recent = this.world.history.slice(0, 18);
     const model = this.snapshot.model ?? this.world.model ?? "未取得";
     return `
-      <div class="ledger-metrics">
+      <div class="ledger-metrics receipt-grid">
         ${metric("焼却Token", metrics.totalTokensBurned.toLocaleString(), "ledger-metric--primary")}${metric("ふわっとした多さ", metrics.energyLabel)}
         ${metric("設備", `${metrics.growthLevel + 1}/24`)}${metric("成果ゼロ", metrics.wastedTokens.toLocaleString())}${metric("現在モデル", model, "ledger-metric--model")}
       </div>
       <div class="ledger-actions"><button type="button" data-action="report">環境債務報告書</button><button type="button" data-action="export-database">全事業所データ</button></div>
-      <h3>最近こういうこともありました</h3>
+      <h3>操業伝票 · 最近こういうこともありました</h3>
       <div class="memory-list">${recent.length ? recent.map((moment) => `
-        <article class="memory-item" data-importance="${moment.importance}"><strong>${escapeHtml(moment.title)}</strong><p>${escapeHtml(moment.line)}</p><time>${new Date(moment.at).toLocaleString("ja-JP")}</time></article>`).join("") : "<p class=empty>まだ記録はありません。</p>"}</div>`;
+        <article class="memory-item receipt-slip" data-importance="${moment.importance}"><strong>${escapeHtml(moment.title)}</strong><p>${escapeHtml(moment.line)}</p><time>${new Date(moment.at).toLocaleString("ja-JP")}</time></article>`).join("") : "<p class=empty>まだ伝票はありません。</p>"}</div>`;
   }
 
   private renderProjects(): string {
     const projects = this.persistence.listProjects();
-    return `<p class="control-note">Codexの作業ディレクトリごとに、別の森と工場を自動で使います。</p><div class="project-list">${projects.map((project) => `
-      <article class="project-item ${project.key === this.world.projectKey ? "is-current" : ""}"><strong>${escapeHtml(project.label)}</strong><span>${project.totalTokens.toLocaleString()} TOK · 設備 ${project.growthLevel + 1}/24</span><small>${project.historyCount}件の記録 · ${project.replayCount}本の動作データ</small></article>`).join("") || "<p class=empty>事業所はまだありません。</p>"}</div>`;
+    return `<p class="control-note">Codexの作業ディレクトリごとに、別の森と工場を自動で使います。</p><div class="project-list">${projects.map((project) => {
+      const act = factoryAct(project.growthLevel);
+      return `<article class="project-item ledger-entry ${project.key === this.world.projectKey ? "is-current" : ""}"><strong>${escapeHtml(project.label)}</strong><span>${project.totalTokens.toLocaleString()} TOK · 設備 ${project.growthLevel + 1}/24</span><b>ACT ${act.index} · ${act.label}</b><small>${project.historyCount}件の記録 · ${project.replayCount}本の映写記録</small></article>`;
+    }).join("") || "<p class=empty>事業所はまだありません。</p>"}</div>`;
   }
 
   private renderReplays(): string {
-    return `<p class="control-note">動画そのものは保存していません。軽量な動作データから、必要な時だけWebMを生成します。</p><div class="replay-list">${this.world.replays.map((replay) => `
-      <article class="replay-item"><strong>${escapeHtml(replay.title)}</strong><span>${replay.totalTokens.toLocaleString()} TOK · ${replay.frames.length} frames · ${replay.wasted ? "未完了" : "完了"}</span><div><button type="button" data-action="replay-video" data-replay="${escapeHtml(replay.id)}">動画化</button><button type="button" data-action="replay-data" data-replay="${escapeHtml(replay.id)}">動作データ</button></div></article>`).join("") || "<p class=empty>完了したタスクの動作データがここへ静かに残ります。</p>"}</div>`;
+    return `<p class="control-note">動画やサムネイルは保存しません。帳簿を開いた時だけ代表場面を現像し、明示した時だけ映写します。</p><div class="replay-list">${this.world.replays.map((replay) => `
+      <article class="replay-item projection-ticket"><button class="projection-ticket__preview" type="button" data-action="replay-video" data-replay="${escapeHtml(replay.id)}" aria-label="${escapeHtml(replay.title)}を映写する"><span class="replay-thumbnail" data-replay-thumbnail="${escapeHtml(replay.id)}" aria-busy="true">代表場面を現像中…</span><b>映写する</b></button><div class="projection-ticket__copy"><strong>${escapeHtml(replay.title)}</strong><span>${replay.totalTokens.toLocaleString()} TOK · ${replay.frames.length} frames · ${replay.wasted ? "未完了" : "完了"}</span><button type="button" data-action="replay-data" data-replay="${escapeHtml(replay.id)}">動作データ</button></div></article>`).join("") || "<p class=empty>完了したタスクの動作データがここへ静かに残ります。</p>"}</div>`;
   }
 
   private renderEvents(): string {
@@ -160,7 +177,7 @@ export class ControlCenter {
     const packs = this.eventPacks.list();
     const enabled = new Set(this.settings.get().enabledEventPacks);
     return `<h3>できごとの記憶</h3><p class="control-note">達成率や未発見数は表示しません。遭遇したものだけを振り返れます。</p>
-      <div class="discovery-list">${discoveries.slice(0, 80).map((item) => `<details><summary>${escapeHtml(item.title)} <small>×${item.count}</small></summary><p>${escapeHtml(item.line)}</p></details>`).join("") || "<p class=empty>まだ珍しい出来事はありません。</p>"}</div>
+      <div class="discovery-list clipping-list">${discoveries.slice(0, 80).map((item) => `<details class="newspaper-clipping"><summary>${escapeHtml(item.title)} <small>×${item.count}</small></summary><p>${escapeHtml(item.line)}</p></details>`).join("") || "<p class=empty>まだ珍しい出来事はありません。</p>"}</div>
       <h3>イベントパック</h3><div class="pack-list">${packs.map((pack) => `<label><input type="checkbox" data-pack="${escapeHtml(pack.id)}" ${enabled.has(pack.id) ? "checked" : ""}> <strong>${escapeHtml(pack.name)}</strong><small>${escapeHtml(pack.description)}</small></label>`).join("")}</div>
       <button type="button" data-action="import-pack">JSONパックを読み込む</button>`;
   }
@@ -193,7 +210,7 @@ export class ControlCenter {
       </section>
       <section class="settings-group settings-group--last">
         <h3>操作</h3>
-        <button type="button" data-action="play-intro">PLAYの操作案内をもう一度見る</button>
+        <button type="button" data-action="play-intro">開業説明をもう一度見る</button>
       </section>`;
   }
 
@@ -271,6 +288,34 @@ export class ControlCenter {
     next.focus();
   }
 
+  private async hydrateReplayThumbnails(): Promise<void> {
+    const slots = Array.from(this.body.querySelectorAll<HTMLElement>("[data-replay-thumbnail]"));
+    // WebViewのWebGL context上限を守るため、24件あっても一つずつ現像する。
+    for (const slot of slots) {
+      if (!slot.isConnected || !this.open || this.activeTab !== "replays") break;
+      const id = slot.dataset.replayThumbnail;
+      const replay = this.world.replays.find((candidate) => candidate.id === id);
+      if (!id || !replay) continue;
+      let pending = this.replayThumbnailCache.get(id);
+      if (!pending) {
+        pending = renderReplayThumbnail(replay);
+        this.replayThumbnailCache.set(id, pending);
+      }
+      const source = await pending;
+      if (!slot.isConnected || slot.dataset.replayThumbnail !== id) continue;
+      slot.setAttribute("aria-busy", "false");
+      if (!source) {
+        slot.textContent = "代表場面を現像できませんでした";
+        continue;
+      }
+      const image = document.createElement("img");
+      image.src = source;
+      image.alt = `${replay.title}の代表場面`;
+      image.draggable = false;
+      slot.replaceChildren(image);
+    }
+  }
+
   private requireElement<T extends HTMLElement = HTMLElement>(selector: string): T {
     const element = this.root.querySelector<T>(selector);
     if (!element) throw new Error(`Control center element missing: ${selector}`);
@@ -279,6 +324,10 @@ export class ControlCenter {
 }
 
 const metric = (label: string, value: string, className = ""): string => `<div class="ledger-metric ${className}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
+export const factoryAct = (growthLevel: number): { index: number; label: string } => {
+  const index = Math.max(0, Math.min(5, Math.floor(growthLevel / 4)));
+  return { index: index + 1, label: FACTORY_ACTS[index] };
+};
 const selected = (value: string, candidate: string): string => value === candidate ? "selected" : "";
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 const setInert = (element: HTMLElement, inert: boolean): void => {

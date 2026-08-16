@@ -11,9 +11,11 @@ import type { CharacterId, CharacterMood } from "../domain/character";
 import type { Particle, Tree, WorldState } from "../domain/world";
 import { readWorldScene, type WorldScene } from "../domain/worldScene";
 import { SCENE_LAYOUT } from "./sceneLayout";
+import { SceneLayout, type StageLayoutMode } from "./stageLayout";
 import type { PresentationMotionPolicy } from "./presentationMotionPolicy";
 import { SpriteAtlas, type ExpressionFrame, type SpriteKey } from "./spriteAtlas";
-import { StageViewport, STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
+import { STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
+import { readWorldPatina, worldPatinaSignature, type WorldPatina } from "./worldPatina";
 
 const WORLD_WIDTH = STAGE_WIDTH;
 const WORLD_HEIGHT = STAGE_HEIGHT;
@@ -39,10 +41,6 @@ const CHARACTER_EXPRESSION_FRAMES: Record<CharacterId, Record<CharacterMood, Exp
 };
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
-const color = (red: number, green: number, blue: number): number =>
-  (clamp(Math.round(red), 0, 255) << 16)
-  | (clamp(Math.round(green), 0, 255) << 8)
-  | clamp(Math.round(blue), 0, 255);
 
 class SpritePool {
   readonly container = new Container();
@@ -96,19 +94,25 @@ export class PixiRenderer implements WorldRenderer {
   private readonly root = new Container();
   private readonly backdrop = new Graphics();
   private readonly backdropSprites = new SpritePool();
+  private readonly environmentDecor = new Graphics();
   private readonly atmosphere = new Graphics();
   private readonly scenery = new Graphics();
+  private readonly factoryGrowth = new Graphics();
   private readonly actorRigging = new Graphics();
+  private readonly staticRigging = new Graphics();
   private readonly effects = new Graphics();
   private readonly proscenium = new Graphics();
   private readonly theatreSprites = new SpritePool();
   private readonly curtainTransition = new Graphics();
   private readonly scenerySprites = new SpritePool();
+  private readonly patinaSprites = new SpritePool();
   private readonly actorSprites = new SpritePool();
   private readonly effectSprites = new SpritePool();
   private disposed = false;
   private lastSceneFamily: "active" | "recovery" | null = null;
   private transitionStartedAt = -1;
+  private staticSceneSignature = "";
+  private layoutMode: StageLayoutMode = "diorama";
   private motion: PresentationMotionPolicy = {
     motionScale: 1,
     allowParticles: true,
@@ -125,9 +129,13 @@ export class PixiRenderer implements WorldRenderer {
     this.root.addChild(
       this.backdrop,
       this.backdropSprites.container,
+      this.environmentDecor,
       this.atmosphere,
       this.scenery,
+      this.factoryGrowth,
       this.scenerySprites.container,
+      this.patinaSprites.container,
+      this.staticRigging,
       this.actorRigging,
       this.actorSprites.container,
       this.effects,
@@ -173,31 +181,42 @@ export class PixiRenderer implements WorldRenderer {
     if (this.disposed) return;
     this.motion = this.motionPolicy();
     this.resize();
+    const scene = readWorldScene(world, snapshot);
+    const active = scene === "mera" || scene === "gogo" || scene === "approval" || scene === "kirari" || scene === "zero-output";
+    const patina = readWorldPatina(world, this.layoutMode);
+    const sceneFamily = active ? "active" : "recovery";
+    const staticSignature = [
+      this.layoutMode,
+      sceneFamily,
+      world.growthLevel,
+      world.environment.weather,
+      world.environment.timePhase,
+      worldPatinaSignature(patina),
+    ].join("|");
+    const rebuildStaticScene = staticSignature !== this.staticSceneSignature;
     this.scenerySprites.begin();
-    this.backdropSprites.begin();
     this.actorSprites.begin();
     this.effectSprites.begin();
-    this.theatreSprites.begin();
-    this.backdrop.clear();
+    if (rebuildStaticScene) {
+      this.staticSceneSignature = staticSignature;
+      this.rebuildStaticScene(world, active, patina);
+    }
     this.atmosphere.clear();
     this.scenery.clear();
     this.actorRigging.clear();
     this.effects.clear();
-    this.proscenium.clear();
     this.curtainTransition.clear();
 
-    const scene = readWorldScene(world, snapshot);
-    const active = scene === "mera" || scene === "gogo" || scene === "kirari" || scene === "zero-output";
     this.updateSceneTransition(active);
     this.applyLayerMotion(world, scene);
-    this.drawBackdrop(world, snapshot, active);
-    this.drawEnvironment(world);
-    this.drawStageFloor(active);
+    this.drawMovingAtmosphere(world, active);
+    this.drawWeatherParticles(world);
     this.drawLake(world);
     this.drawTrees(world, active);
     this.drawFactory(world, active ? { ...snapshot, active: true } : snapshot, scene);
-    this.drawRigging(active);
-    if (scene === "zero-output") {
+    if (scene === "approval") {
+      this.drawApprovalCrew(world);
+    } else if (scene === "zero-output") {
       this.drawZeroOutputCrew(world);
     } else if (scene === "kirari") {
       this.drawCeremonyCrew(world);
@@ -214,14 +233,11 @@ export class PixiRenderer implements WorldRenderer {
     }
     this.drawSceneEffects(world, scene);
     this.drawStatusEffects(world, snapshot);
-    this.drawProscenium(world, active);
     this.drawCurtainTransition();
 
     this.scenerySprites.end();
-    this.backdropSprites.end();
     this.actorSprites.end();
     this.effectSprites.end();
-    this.theatreSprites.end();
     this.app.render();
   }
 
@@ -241,13 +257,48 @@ export class PixiRenderer implements WorldRenderer {
       this.canvas.style.width = "100%";
       this.canvas.style.height = "100%";
     }
-    const viewport = new StageViewport(width, height);
-    this.root.scale.set(viewport.scale);
-    this.root.position.set(viewport.offsetX, viewport.offsetY);
+    const layout = new SceneLayout(width, height);
+    this.layoutMode = layout.mode;
+    this.root.scale.set(layout.viewport.scale);
+    this.root.position.set(layout.viewport.offsetX, layout.viewport.offsetY);
   }
 
   private motionTime(elapsed: number): number {
     return elapsed * this.motion.motionScale;
+  }
+
+  /**
+   * 署名に含まれる値だけで決まる舞台装置を一度に更新する。
+   * WorldStateの連続値やactor状態を参照する描画はここへ入れない。
+   */
+  private rebuildStaticScene(world: WorldState, active: boolean, patina: WorldPatina): void {
+    this.backdrop.clear();
+    this.environmentDecor.clear();
+    this.factoryGrowth.clear();
+    this.staticRigging.clear();
+    this.proscenium.clear();
+    this.backdropSprites.begin();
+    this.patinaSprites.begin();
+    this.theatreSprites.begin();
+
+    this.drawBackdrop(active);
+    this.drawStageFloor(active);
+    this.drawEnvironmentDecor(world);
+    const forge = SCENE_LAYOUT.forge;
+    this.drawFactoryGrowth(
+      world.growthLevel,
+      active ? forge.x : 254,
+      active ? forge.y : 143,
+      active ? 1 : 0.54,
+      active,
+    );
+    this.drawPatina(patina);
+    this.drawRigging(active);
+    this.drawProscenium(active);
+
+    this.backdropSprites.end();
+    this.patinaSprites.end();
+    this.theatreSprites.end();
   }
 
   private updateSceneTransition(active: boolean): void {
@@ -267,25 +318,25 @@ export class PixiRenderer implements WorldRenderer {
     const shakeY = Math.cos(time * 29) * shakeStrength * 0.55;
     this.backdrop.position.set(driftX * 0.24, driftY * 0.18);
     this.backdropSprites.container.position.set(driftX * 0.24, driftY * 0.18);
+    this.environmentDecor.position.set(driftX * 0.24, driftY * 0.18);
     this.atmosphere.position.set(driftX * 0.24, driftY * 0.18);
     this.scenery.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
+    this.factoryGrowth.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
     this.scenerySprites.container.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
+    this.patinaSprites.container.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
+    this.staticRigging.position.set(driftX + shakeX, driftY + shakeY);
     this.actorRigging.position.set(driftX + shakeX, driftY + shakeY);
     this.actorSprites.container.position.set(driftX + shakeX, driftY + shakeY);
     this.effects.position.set(shakeX, shakeY);
     this.effectSprites.container.position.set(shakeX, shakeY);
   }
 
-  private drawBackdrop(world: WorldState, snapshot: AgentSnapshot, active: boolean): void {
+  private drawBackdrop(active: boolean): void {
     const key: SpriteKey = active ? "backdropActive" : "backdropRecovery";
     if (this.atlas.has(key)) {
       this.sprite(this.backdropSprites, key, WORLD_WIDTH / 2, WORLD_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT);
     } else {
-      const top = snapshot.status === "error"
-        ? 0x6f3536
-        : active
-          ? color(61 + world.heat * 45, 39, 43)
-          : 0x6fa6b7;
+      const top = active ? 0x52272b : 0x6fa6b7;
       const middle = active ? 0x76513f : 0x86b49b;
       const bottom = active ? 0x4f382d : 0x4f7049;
 
@@ -296,7 +347,13 @@ export class PixiRenderer implements WorldRenderer {
       this.backdrop.ellipse(158, 165, 155, 49).fill(active ? 0x5f503b : 0x557049);
       this.backdrop.ellipse(157, 158, 147, 39).fill(active ? 0x756046 : 0x6b8954);
     }
+    // 背景紙の継ぎ目。奥行きをリアルにせず、舞台装置であることを見せる。
+    for (let x = 20; x < 305; x += 37) {
+      this.backdrop.moveTo(x, 16).lineTo(x + 3, 155).stroke({ color: active ? 0x3e302c : 0x466b58, width: 0.55, alpha: 0.18 });
+    }
+  }
 
+  private drawMovingAtmosphere(world: WorldState, active: boolean): void {
     const cloudOffset = (this.motionTime(world.elapsed) * (active ? 1.2 : 2.1)) % 370;
     for (let index = 0; index < 3; index += 1) {
       const x = ((index * 138 + cloudOffset) % 370) - 30;
@@ -306,28 +363,27 @@ export class PixiRenderer implements WorldRenderer {
         .ellipse(x + 17, y - 4, 15, 8)
         .fill({ color: active ? 0x463d3e : 0xe9f6ed, alpha: active ? 0.11 : 0.22 });
     }
-
-    // 背景紙の継ぎ目。奥行きをリアルにせず、舞台装置であることを見せる。
-    for (let x = 20; x < 305; x += 37) {
-      this.atmosphere.moveTo(x, 16).lineTo(x + 3, 155).stroke({ color: active ? 0x3e302c : 0x466b58, width: 0.55, alpha: 0.18 });
-    }
   }
 
-  private drawEnvironment(world: WorldState): void {
+  private drawEnvironmentDecor(world: WorldState): void {
     const timeTint = {
       dawn: { color: 0xf29a55, alpha: 0.13 },
       day: { color: 0xffffff, alpha: 0 },
       dusk: { color: 0xd66f52, alpha: 0.18 },
       night: { color: 0x172957, alpha: 0.34 },
     }[world.environment.timePhase];
-    if (timeTint.alpha > 0) this.atmosphere.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(timeTint);
+    if (timeTint.alpha > 0) this.environmentDecor.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(timeTint);
 
     const weather = world.environment.weather;
     if (weather === "cloudy" || weather === "fog") {
-      this.atmosphere.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0xb7b6a9, alpha: weather === "fog" ? 0.18 : 0.09 });
+      this.environmentDecor.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0xb7b6a9, alpha: weather === "fog" ? 0.18 : 0.09 });
     } else if (weather === "storm") {
-      this.atmosphere.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0x39455c, alpha: 0.24 });
+      this.environmentDecor.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0x39455c, alpha: 0.24 });
     }
+  }
+
+  private drawWeatherParticles(world: WorldState): void {
+    const weather = world.environment.weather;
     if (weather === "rain" || weather === "storm") {
       const count = this.motion.allowParticles ? (weather === "storm" ? 16 : 10) : 4;
       for (let index = 0; index < count; index += 1) {
@@ -349,7 +405,8 @@ export class PixiRenderer implements WorldRenderer {
       this.sprite(this.backdropSprites, "stageFloor", WORLD_WIDTH / 2, WORLD_HEIGHT, WORLD_WIDTH, 90);
       return;
     }
-    this.scenery
+    const floor = this.backdrop;
+    floor
       .moveTo(5, 126)
       .lineTo(302, 119)
       .lineTo(319, 174)
@@ -359,25 +416,71 @@ export class PixiRenderer implements WorldRenderer {
       .stroke({ color: active ? 0x2a211e : 0x2d402b, width: 2.4 });
 
     for (let x = -24; x < 340; x += 22) {
-      this.scenery
+      floor
         .moveTo(x, 119)
         .lineTo(x + 34, 188)
         .stroke({ color: active ? 0x322823 : 0x365035, width: 0.7, alpha: 0.34 });
     }
     for (let y = 132; y < 190; y += 13) {
-      this.scenery
+      floor
         .moveTo(5, y)
         .lineTo(317, y - 12)
         .stroke({ color: active ? 0x352b25 : 0x3a5235, width: 0.7, alpha: 0.3 });
     }
 
-    this.scenery
+    floor
       .moveTo(15, 180)
       .lineTo(312, 165)
       .lineTo(319, 176)
       .lineTo(23, 191)
       .closePath()
       .fill(active ? 0x3f332d : 0x45583d);
+  }
+
+  private drawPatina(patina: WorldPatina): void {
+    if (this.atlas.has("patinaBentFence")) {
+      for (let index = 0; index < patina.bentFence; index += 1) {
+        this.sprite(this.patinaSprites, "patinaBentFence", 67 + index * 49, 174 - index * 3, 47, 20, {
+          flipX: index % 2 === 1,
+          alpha: 0.9,
+        });
+      }
+    }
+    if (this.atlas.has("patinaIncidentTag")) {
+      for (let index = 0; index < patina.incidentTags; index += 1) {
+        this.sprite(this.patinaSprites, "patinaIncidentTag", 219 + index * 15, 137 + (index % 2) * 8, 13, 13, {
+          rotation: -0.08 + index * 0.07,
+          alpha: 0.92,
+        });
+      }
+    }
+    if (this.atlas.has("patinaFadedStamp")) {
+      for (let index = 0; index < patina.fadedStamps; index += 1) {
+        this.sprite(this.patinaSprites, "patinaFadedStamp", 25 + index * 17, 161 - (index % 2) * 5, 15, 15, {
+          rotation: -0.12 + index * 0.06,
+          alpha: 0.7,
+        });
+      }
+    }
+    if (this.atlas.has("patinaPipeScar")) {
+      for (let index = 0; index < patina.pipeScars; index += 1) {
+        this.sprite(this.patinaSprites, "patinaPipeScar", 224 + index * 24, 157 - index * 7, 24, 10, {
+          flipX: index % 2 === 1,
+          alpha: 0.82,
+        });
+      }
+    }
+    if (this.atlas.has("patinaMoss")) {
+      const positions = [{ x: 184, y: 176 }, { x: 267, y: 174 }, { x: 143, y: 173 }];
+      for (let index = 0; index < patina.moss; index += 1) {
+        const point = positions[index];
+        if (!point) break;
+        this.sprite(this.patinaSprites, "patinaMoss", point.x, point.y, 21 - index * 2, 14 - index, {
+          flipX: index % 2 === 1,
+          alpha: 0.82,
+        });
+      }
+    }
   }
 
   private drawLake(world: WorldState): void {
@@ -418,7 +521,8 @@ export class PixiRenderer implements WorldRenderer {
       const width = 27 * tree.size * growthScale * depthScale * (1 + collapse * 0.1);
       const height = 41 * tree.size * growthScale * depthScale * (1 - collapse * 0.28);
       const sprite = this.treeSprite(tree, active);
-      const sway = Math.sin(tree.sway) * (tree.stage === "burning" ? 0.045 : 0.018) + collapse * (tree.id % 2 === 0 ? -0.16 : 0.16);
+      const sway = Math.sin(tree.sway) * (tree.stage === "burning" ? 0.045 : 0.018) * this.motion.motionScale
+        + collapse * (tree.id % 2 === 0 ? -0.16 : 0.16);
       this.shadow(this.scenery, tree.x, tree.y + 10, width * 0.28, Math.max(1.1, height * 0.05), 0.11);
       if (sprite === "treeRecovery") {
         this.scenery
@@ -445,28 +549,30 @@ export class PixiRenderer implements WorldRenderer {
 
   private drawFactory(world: WorldState, snapshot: AgentSnapshot, scene: WorldScene): void {
     const forge = SCENE_LAYOUT.forge;
-    const forgeScale = snapshot.active ? 1 : 0.54;
-    const forgeX = snapshot.active ? forge.x : 254;
-    const forgeY = snapshot.active ? forge.y : 143;
+    const industrialScene = scene !== "poka" && scene !== "meguri";
+    const lineStopped = scene === "approval" || scene === "zero-output";
+    const operating = snapshot.active && !lineStopped;
+    const forgeScale = industrialScene ? 1 : 0.54;
+    const forgeX = industrialScene ? forge.x : 254;
+    const forgeY = industrialScene ? forge.y : 143;
     const intensity = effortMultiplier(snapshot.effort);
-    const pulse = 1 + world.combustionPulse * 0.055 + Math.sin(world.factoryPulse) * (snapshot.active ? 0.013 + intensity * 0.005 : 0.009);
-    this.drawFactoryGrowth(world, forgeX, forgeY, forgeScale, snapshot.active);
-    if (snapshot.active) {
+    const pulse = 1 + (operating ? world.combustionPulse * 0.055 : 0) + Math.sin(world.factoryPulse) * (operating ? 0.013 + intensity * 0.005 : 0.004);
+    if (operating) {
       this.scenery
         .circle(forgeX, 132, 51)
         .fill({ color: 0xff8e2e, alpha: 0.12 + world.heat * 0.12 + world.combustionPulse * 0.14 });
     }
-    this.shadow(this.scenery, forgeX, forgeY + 3, 41 * forgeScale, 7 * forgeScale, snapshot.active ? 0.27 : 0.1);
+    this.shadow(this.scenery, forgeX, forgeY + 3, 41 * forgeScale, 7 * forgeScale, operating ? 0.27 : industrialScene ? 0.2 : 0.1);
     this.cutout(
       this.scenerySprites,
-      snapshot.active ? "forgeActive" : "forgeRecovery",
+      operating ? "forgeActive" : "forgeRecovery",
       forgeX,
       forgeY,
       forge.width * pulse * forgeScale,
       forge.height * pulse * forgeScale,
-      { alpha: snapshot.active ? 1 : 0.42 },
+      { alpha: operating ? 1 : industrialScene ? 0.74 : 0.42 },
     );
-    if (snapshot.active) {
+    if (operating) {
       this.sprite(this.scenerySprites, "smoke", forgeX + 1, 84, 27, 39, {
         rotation: Math.sin(this.motionTime(world.elapsed) * 1.4) * 0.08,
         alpha: 0.5 + world.pollution * 0.34,
@@ -476,46 +582,56 @@ export class PixiRenderer implements WorldRenderer {
         alpha: 0.38 + world.pollution * 0.3,
       });
       if (scene === "gogo") this.drawAuxiliaryForge(world);
+    } else if (lineStopped) {
+      const residual = scene === "zero-output" ? 0.42 : 0.23;
+      this.sprite(this.scenerySprites, "smoke", forgeX + 1, 85, 24, 35, {
+        rotation: scene === "zero-output" ? 0.08 : 0,
+        alpha: residual + world.pollution * 0.12,
+      });
+      this.sprite(this.scenerySprites, "smoke", forgeX + 18, 81, 17, 26, {
+        rotation: -0.05,
+        alpha: residual * 0.7,
+      });
     }
   }
 
-  private drawFactoryGrowth(world: WorldState, forgeX: number, forgeY: number, scale: number, active: boolean): void {
-    const pieces = Math.min(23, Math.max(0, world.growthLevel));
+  private drawFactoryGrowth(growthLevel: number, forgeX: number, forgeY: number, scale: number, active: boolean): void {
+    const pieces = Math.min(23, Math.max(0, growthLevel));
     const metal = active ? 0xa8794c : 0x71856d;
     const dark = active ? 0x4a342a : 0x465847;
     for (let index = 0; index < pieces; index += 1) {
       if (index < 6) {
         const x = forgeX - 50 + (index % 3) * 10;
         const y = forgeY - 18 - Math.floor(index / 3) * 12;
-        this.scenery.moveTo(x, y).lineTo(x + 12, y).lineTo(x + 12, y + 8).stroke({ color: metal, width: 2.2 * scale, alpha: 0.72 });
-        this.scenery.circle(x, y, 2.2 * scale).fill({ color: dark, alpha: 0.78 });
+        this.factoryGrowth.moveTo(x, y).lineTo(x + 12, y).lineTo(x + 12, y + 8).stroke({ color: metal, width: 2.2 * scale, alpha: 0.72 });
+        this.factoryGrowth.circle(x, y, 2.2 * scale).fill({ color: dark, alpha: 0.78 });
       } else if (index < 10) {
         const gauge = index - 6;
         const x = forgeX - 43 + gauge * 11;
         const y = forgeY - 54 - (gauge % 2) * 5;
-        this.scenery.circle(x, y, 4.2 * scale).fill({ color: 0xd8c28b, alpha: 0.7 }).stroke({ color: dark, width: 1, alpha: 0.9 });
-        this.scenery.moveTo(x, y).lineTo(x + Math.cos(gauge) * 3, y - 2.5).stroke({ color: 0x8a4027, width: 0.8, alpha: 0.9 });
+        this.factoryGrowth.circle(x, y, 4.2 * scale).fill({ color: 0xd8c28b, alpha: 0.7 }).stroke({ color: dark, width: 1, alpha: 0.9 });
+        this.factoryGrowth.moveTo(x, y).lineTo(x + Math.cos(gauge) * 3, y - 2.5).stroke({ color: 0x8a4027, width: 0.8, alpha: 0.9 });
       } else if (index < 14) {
         const tank = index - 10;
         const x = forgeX + 43 + (tank % 2) * 9;
         const y = forgeY - 9 - Math.floor(tank / 2) * 24;
-        this.scenery.roundRect(x - 5, y - 13, 10, 19, 4).fill({ color: metal, alpha: 0.64 }).stroke({ color: dark, width: 1.1, alpha: 0.82 });
+        this.factoryGrowth.roundRect(x - 5, y - 13, 10, 19, 4).fill({ color: metal, alpha: 0.64 }).stroke({ color: dark, width: 1.1, alpha: 0.82 });
       } else if (index < 18) {
         const step = index - 14;
         const x = forgeX - 57 + step * 9;
-        this.scenery.moveTo(x, forgeY + 2).lineTo(x + 5, forgeY - 44).stroke({ color: dark, width: 1.3, alpha: 0.72 });
-        this.scenery.moveTo(x - 2, forgeY - 12 - step * 4).lineTo(x + 12, forgeY - 12 - step * 4).stroke({ color: metal, width: 1, alpha: 0.65 });
+        this.factoryGrowth.moveTo(x, forgeY + 2).lineTo(x + 5, forgeY - 44).stroke({ color: dark, width: 1.3, alpha: 0.72 });
+        this.factoryGrowth.moveTo(x - 2, forgeY - 12 - step * 4).lineTo(x + 12, forgeY - 12 - step * 4).stroke({ color: metal, width: 1, alpha: 0.65 });
       } else if (index < 21) {
         const stack = index - 18;
         const x = forgeX + 30 + stack * 8;
         const height = 28 + stack * 5;
-        this.scenery.roundRect(x - 3, forgeY - height - 31, 6, height, 2).fill({ color: dark, alpha: 0.78 });
-        this.scenery.rect(x - 5, forgeY - height - 34, 10, 4).fill({ color: metal, alpha: 0.76 });
+        this.factoryGrowth.roundRect(x - 3, forgeY - height - 31, 6, height, 2).fill({ color: dark, alpha: 0.78 });
+        this.factoryGrowth.rect(x - 5, forgeY - height - 34, 10, 4).fill({ color: metal, alpha: 0.76 });
       } else {
         const vent = index - 21;
         const x = forgeX - 28 + vent * 22;
-        this.scenery.circle(x, forgeY - 67, 7).stroke({ color: metal, width: 2, alpha: 0.74 });
-        this.scenery.moveTo(x - 4, forgeY - 67).lineTo(x + 4, forgeY - 67).moveTo(x, forgeY - 71).lineTo(x, forgeY - 63).stroke({ color: dark, width: 1, alpha: 0.78 });
+        this.factoryGrowth.circle(x, forgeY - 67, 7).stroke({ color: metal, width: 2, alpha: 0.74 });
+        this.factoryGrowth.moveTo(x - 4, forgeY - 67).lineTo(x + 4, forgeY - 67).moveTo(x, forgeY - 71).lineTo(x, forgeY - 63).stroke({ color: dark, width: 1, alpha: 0.78 });
       }
     }
   }
@@ -549,7 +665,7 @@ export class PixiRenderer implements WorldRenderer {
           SCENE_LAYOUT.recovery.mizumo,
         ];
     for (const point of groundPoints) {
-      this.actorRigging
+      this.staticRigging
         .roundRect(point.x - 4, point.y - 4, 8, 3, 1.5)
         .fill({ color: 0x543522, alpha: 0.7 })
         .moveTo(point.x, point.y - 2)
@@ -558,7 +674,7 @@ export class PixiRenderer implements WorldRenderer {
     }
     if (!active) {
       const fuwame = SCENE_LAYOUT.recovery.fuwame;
-      this.actorRigging
+      this.staticRigging
         .moveTo(fuwame.x - 8, 9)
         .lineTo(fuwame.x - 7, fuwame.y - 18)
         .moveTo(fuwame.x + 8, 9)
@@ -714,6 +830,26 @@ export class PixiRenderer implements WorldRenderer {
     this.character("mizumo", world, 306, 166, 23, 32, { expressionFrame: 2, flipX: true, alpha: 0.72 });
     this.character("fuwame", world, 252, 112, 32, 32, { expressionFrame: 3, anchorY: 0.5, alpha: 0.78 });
     this.effects.rect(12, 13, 296, 164).stroke({ color: 0xb05d45, width: 1.1, alpha: 0.26 });
+  }
+
+  private drawApprovalCrew(world: WorldState): void {
+    // 機械を止め、六人を同じ驚き表情で観客側へ向ける。判断条件はWorldScene側だけに置く。
+    this.character("kururi", world, 139, 169, 35, 41, { expressionFrame: 4 });
+    this.character("hinoko", world, 179, 170, 43, 53, { expressionFrame: 4 });
+    this.character("sumi", world, 219, 169, 33, 45, { expressionFrame: 4 });
+    this.character("mebuki", world, 252, 169, 31, 44, { expressionFrame: 3 });
+    this.character("mizumo", world, 285, 168, 29, 40, { expressionFrame: 2 });
+    this.character("fuwame", world, 238, 103, 38, 38, { expressionFrame: 3, anchorY: 0.5 });
+    this.effects.rect(11, 13, 298, 165).fill({ color: 0x2b2524, alpha: 0.12 });
+    this.effects
+      .moveTo(154, 40)
+      .lineTo(166, 40)
+      .lineTo(170, 50)
+      .lineTo(150, 50)
+      .closePath()
+      .fill({ color: 0xd8a74d, alpha: 0.92 })
+      .stroke({ color: 0x5f3a25, width: 1.1, alpha: 0.9 });
+    this.effects.circle(160, 52, 2.5).fill({ color: 0xd07835, alpha: 0.9 });
   }
 
   private drawCeremonyCrew(world: WorldState): void {
@@ -895,7 +1031,7 @@ export class PixiRenderer implements WorldRenderer {
     }
   }
 
-  private drawProscenium(world: WorldState, active: boolean): void {
+  private drawProscenium(active: boolean): void {
     if (
       this.atlas.has("prosceniumFrame")
       && this.atlas.has("curtainLeft")
@@ -956,7 +1092,7 @@ export class PixiRenderer implements WorldRenderer {
 
     for (let index = 0; index < 10; index += 1) {
       const x = 28 + index * 29;
-      const glow = 0.55 + Math.sin(this.motionTime(world.elapsed) * 2.1 + index) * 0.12;
+      const glow = 0.58 + (index % 3) * 0.04;
       this.proscenium.circle(x, 183, 2.8).fill({ color: active ? 0xffbc4e : 0xd8e8ad, alpha: glow });
       this.proscenium.circle(x, 183, 5.5).fill({ color: active ? 0xff8a32 : 0xb5d98f, alpha: glow * 0.08 });
     }
@@ -964,6 +1100,10 @@ export class PixiRenderer implements WorldRenderer {
   }
 
   private drawCurtainTransition(): void {
+    if (this.motion.motionScale === 0) {
+      this.transitionStartedAt = -1;
+      return;
+    }
     if (this.transitionStartedAt < 0) return;
     const progress = (performance.now() - this.transitionStartedAt) / 860;
     if (progress >= 1) {

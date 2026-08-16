@@ -21,10 +21,15 @@ export class ReplayRecorder {
   private recording: Recording | null = null;
 
   onSnapshot(world: WorldState, previous: AgentSnapshot, next: AgentSnapshot): void {
+    const projectChanged = this.recording && projectKeyOf(next) !== this.recording.projectKey;
+    if (projectChanged) {
+      this.finish(world, true);
+      if (next.active) this.start(next, world);
+      return;
+    }
     if (next.active && !this.recording) this.start(next, world);
     const ended = this.recording && !next.active && previous.active;
-    const projectChanged = this.recording && projectKeyOf(next) !== this.recording.projectKey;
-    if (ended || projectChanged) this.finish(world, next.status === "error" || next.status === "idle");
+    if (ended) this.finish(world, next.status === "error" || next.status === "idle");
   }
 
   update(world: WorldState, snapshot: AgentSnapshot): void {

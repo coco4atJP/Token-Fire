@@ -1,6 +1,7 @@
 import "./styles.css";
 import "./experience.css";
 import "./advancedExperience.css";
+import "./redesign.css";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppController, type ControllerView, type SourceMode } from "./application/appController";
@@ -9,18 +10,24 @@ import { EnvironmentDirector } from "./application/environmentDirector";
 import { PackEventDirector } from "./application/packEventDirector";
 import { ReplayRecorder } from "./application/replayRecorder";
 import type { AgentSnapshot } from "./domain/agent";
+import { readWorldScene } from "./domain/worldScene";
+import type { AgentSource } from "./infrastructure/codexClient";
+import type { DevelopmentFixture } from "./infrastructure/developmentFixture";
 import { EventPackRegistry } from "./domain/eventPack";
 import { CodexJsonlSource } from "./infrastructure/codexClient";
 import { PlatformBridge } from "./infrastructure/platformBridge";
 import { SettingsStore } from "./infrastructure/settingsStore";
-import { BrowserWorldPersistence } from "./infrastructure/worldPersistence";
+import { BrowserWorldPersistence, type WorldPersistence } from "./infrastructure/worldPersistence";
 import { TokenFireAudioDirector } from "./presentation/audioDirector";
 import { ControlCenter } from "./presentation/controlCenter";
 import { ExperienceAudioDirector } from "./presentation/experienceAudio";
 import { TokenFireExperienceOverlay } from "./presentation/experienceOverlay";
+import { shouldIgnoreGlobalShortcut } from "./presentation/globalShortcut";
 import { InteractionController } from "./presentation/interactionController";
+import { OpeningBriefing } from "./presentation/openingBriefing";
 import { PixiRenderer } from "./presentation/pixiRenderer";
 import { readPresentationMotionPolicy } from "./presentation/presentationMotionPolicy";
+import { readStageLayoutMode } from "./presentation/stageLayout";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("#app was not found");
@@ -28,13 +35,13 @@ if (!app) throw new Error("#app was not found");
 app.innerHTML = `
   <main class="shell">
     <div class="drag-strip" data-tauri-drag-region></div>
-    <div class="brand">TOKEN-FIRE</div>
+    <div class="brand" aria-hidden="true"><span>HIBANA WORKS</span><strong>TOKEN-FIRE</strong></div>
     <div class="toolbar" role="toolbar" aria-label="劇場操作">
-      <button id="play-button" type="button" title="キャラクターを触る（P）">PLAY</button>
-      <button id="ledger-button" type="button" title="つけ帳を開く（L）">LEDGER</button>
-      <button id="quiet-button" type="button" title="30分休止（Q）">QUIET</button>
-      <button id="menu-button" type="button" title="劇場メニュー" aria-haspopup="menu" aria-expanded="false">MENU</button>
-      <button id="close-button" class="toolbar__close" type="button" title="Trayへ隠す">×</button>
+      <button id="play-button" type="button" title="キャラクターへ触る（P）" aria-label="PLAY · キャラクターへ触る（P）"><img src="/assets/token-fire/generated/ui/icons/play-puppet-control-64.png" alt=""><span>遊ぶ</span></button>
+      <button id="ledger-button" type="button" title="つけ帳を開く（L）" aria-label="LEDGER · つけ帳を開く（L）"><img src="/assets/token-fire/generated/ui/icons/ledger-book-control-64.png" alt=""><span>台帳</span></button>
+      <button id="quiet-button" type="button" title="30分の幕間（Q）" aria-label="QUIET · 30分の幕間（Q）"><img src="/assets/token-fire/generated/ui/icons/quiet-rain-intermission-64.png" alt=""><span>幕間</span></button>
+      <button id="menu-button" type="button" title="舞台裏を開く" aria-label="BACKSTAGE · 舞台裏を開く" aria-haspopup="menu" aria-expanded="false"><img src="/assets/token-fire/generated/ui/icons/backstage-curtain-toolbox-control-64.png" alt=""><span>舞台裏</span></button>
+      <button id="close-button" class="toolbar__close" type="button" title="Trayへ退避" aria-label="Trayへ退避"><img src="/assets/token-fire/generated/ui/icons/tray-stow-theatre-64.png" alt=""><span>退避</span></button>
     </div>
     <div class="theatre-menu" role="menu" aria-label="劇場メニュー" hidden inert>
       <div class="theatre-menu__header" role="presentation" aria-hidden="true"><span>BACKSTAGE</span><strong>劇場メニュー</strong></div>
@@ -51,7 +58,6 @@ app.innerHTML = `
     </aside>
     <canvas id="world" aria-label="Token-Fire puppet theatre"></canvas>
     <div class="stage-loading">舞台を組み立てています…</div>
-    <div class="status-line"><span class="connection-dot recovering"></span><span id="connection">WAITING FOR CODEX</span></div>
   </main>
 `;
 
@@ -71,8 +77,6 @@ const soundButton = requireElement<HTMLButtonElement>("#sound-button");
 const closeButton = requireElement<HTMLButtonElement>("#close-button");
 const playGuide = requireElement<HTMLElement>(".play-guide");
 const playGuideClose = requireElement<HTMLButtonElement>(".play-guide button");
-const connection = requireElement<HTMLSpanElement>("#connection");
-const connectionDot = requireElement<HTMLSpanElement>(".connection-dot");
 const stageLoading = requireElement<HTMLDivElement>(".stage-loading");
 const isDesktop = "__TAURI_INTERNALS__" in window;
 const setMenuMeta = (button: HTMLButtonElement, value: string): void => {
@@ -82,6 +86,8 @@ const setMenuMeta = (button: HTMLButtonElement, value: string): void => {
 
 let currentSource: SourceMode = "codex";
 let currentSize = 1;
+let connectionLabel = "WAITING FOR CODEX";
+let experience: TokenFireExperienceOverlay;
 const sizes = [new LogicalSize(380, 240), new LogicalSize(560, 350), new LogicalSize(800, 480)];
 
 const view: ControllerView = {
@@ -92,47 +98,73 @@ const view: ControllerView = {
     sourceButton.setAttribute("aria-pressed", String(mode === "demo"));
   },
   setConnectionLabel(label) {
-    connection.textContent = label;
+    connectionLabel = label;
+    experience?.setConnectionLabel(label);
   },
   setStatus(snapshot: AgentSnapshot) {
-    connectionDot.classList.toggle("active", snapshot.active);
-    connectionDot.classList.toggle("recovering", !snapshot.active && snapshot.status !== "error");
     const suffix = snapshot.sessionTitle ? ` · ${snapshot.sessionTitle}` : "";
-    connection.textContent = `${snapshot.source.toUpperCase()}${suffix}`;
+    connectionLabel = `${snapshot.source.toUpperCase()}${suffix}`;
+    experience?.setConnectionLabel(connectionLabel);
   },
 };
 
 const settings = new SettingsStore();
 toolbar.classList.toggle("is-inviting", !settings.get().playIntroSeen);
 const platform = new PlatformBridge();
-const persistence = new BrowserWorldPersistence();
+let developmentFixture: DevelopmentFixture | null = null;
+let persistence: WorldPersistence = new BrowserWorldPersistence();
 const eventPacks = new EventPackRegistry();
-const attention = new AttentionDirector(settings, platform);
+const attention = new AttentionDirector(settings, platform, () => developmentFixture === null);
 const environment = new EnvironmentDirector(settings);
 const packEvents = new PackEventDirector(eventPacks, settings, attention);
 const replay = new ReplayRecorder();
+let source: AgentSource = new CodexJsonlSource();
+let applyDevelopmentFixture: ((fixture: DevelopmentFixture) => void) | null = null;
+if (import.meta.env.DEV) {
+  const fixtureModule = await import("./infrastructure/developmentFixture");
+  developmentFixture = fixtureModule.readDevelopmentFixture(window.location.search, true);
+  if (developmentFixture) {
+    // bodyの5px insetを含むviewport寸法がfixtureの基準。100%で上限を設け、
+    // 380×240時にapp自身を380×240へ固定して外側へ8〜10px溢れさせない。
+    app.style.width = `min(100%, ${developmentFixture.width}px)`;
+    app.style.height = `min(100%, ${developmentFixture.height}px)`;
+    app.dataset.fixture = developmentFixture.scene;
+    source = new fixtureModule.DevelopmentFixtureSource(developmentFixture);
+    persistence = new fixtureModule.DevelopmentFixturePersistence(developmentFixture);
+    applyDevelopmentFixture = (fixture) => fixtureModule.applyDevelopmentWorldFixture(controller.getWorld(), fixture);
+  }
+}
+const readEffectiveQuiet = (): boolean => developmentFixture
+  ? developmentFixture.quiet || document.visibilityState === "hidden"
+  : attention.isQuiet();
 let interaction: InteractionController | null = null;
+const setToolbarLabel = (button: HTMLButtonElement, label: string): void => {
+  const text = button.querySelector<HTMLElement>("span");
+  if (text) text.textContent = label;
+};
 const stopDirectInteraction = (): void => {
   if (!interaction) return;
   interaction.toggle(false);
-  playButton.textContent = "PLAY";
+  setToolbarLabel(playButton, "遊ぶ");
   playButton.setAttribute("aria-pressed", "false");
+  playButton.setAttribute("aria-label", "PLAY · キャラクターへ触る（P）");
 };
-const experience = new TokenFireExperienceOverlay(shell, (open) => {
+experience = new TokenFireExperienceOverlay(shell, (open) => {
   if (open) stopDirectInteraction();
   setSurfaceOpen(open);
 });
+experience.setConnectionLabel(connectionLabel);
 const audio = new ExperienceAudioDirector(new TokenFireAudioDirector(), {
-  allowEventSound: () => attention.allowEventSound(),
-  isQuiet: () => attention.isQuiet(),
+  allowEventSound: () => developmentFixture === null && attention.allowEventSound(),
+  isQuiet: readEffectiveQuiet,
 });
 const renderer = await PixiRenderer.create(canvas, () =>
-  readPresentationMotionPolicy(settings.get(), attention.isQuiet()),
+  readPresentationMotionPolicy(settings.get(), readEffectiveQuiet()),
 );
 stageLoading.classList.add("is-opening");
 window.setTimeout(() => stageLoading.remove(), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 80 : 640);
 const controller = new AppController(
-  new CodexJsonlSource(),
+  source,
   renderer,
   audio,
   experience,
@@ -142,8 +174,14 @@ const controller = new AppController(
   packEvents,
   replay,
   view,
+  () => interaction?.isActive() ?? false,
+  () => {
+    if (developmentFixture) applyDevelopmentFixture?.(developmentFixture);
+  },
+  readEffectiveQuiet,
 );
 interaction = new InteractionController(shell, () => controller.getWorld(), controller.getCharacterDirector());
+let briefing!: OpeningBriefing;
 const controlCenter = new ControlCenter(
   shell,
   controller.getWorld(),
@@ -156,17 +194,35 @@ const controlCenter = new ControlCenter(
     if (open) stopDirectInteraction();
     setSurfaceOpen(open);
   },
-  () => showPlayIntro(false),
+  () => briefing.show(),
+);
+briefing = new OpeningBriefing(
+  shell,
+  () => settings.update({ openingBriefingSeen: true }),
+  (open) => {
+    if (open) stopDirectInteraction();
+    setSurfaceOpen(open);
+  },
 );
 controller.subscribe((world, snapshot) => {
+  if (developmentFixture) applyDevelopmentFixture?.(developmentFixture);
+  const scene = readWorldScene(world, snapshot);
+  if (interaction?.isActive() && (scene === "approval" || scene === "kirari" || scene === "zero-output")) stopDirectInteraction();
   interaction?.update(world, snapshot);
   controlCenter.update(world, snapshot);
   shell.dataset.attention = settings.get().attention.mode;
-  shell.classList.toggle("is-quiet", attention.isQuiet());
+  shell.classList.toggle("is-quiet", readEffectiveQuiet());
   shell.classList.toggle("reduce-flash", settings.get().attention.reduceFlash);
 });
 controller.start();
-if (!isDesktop) {
+if (!developmentFixture && !settings.get().openingBriefingSeen) requestAnimationFrame(() => briefing.show());
+if (developmentFixture) {
+  sourceButton.disabled = true;
+  const sourceLabel = sourceButton.querySelector<HTMLElement>("span");
+  if (sourceLabel) sourceLabel.textContent = "固定Fixture";
+  setMenuMeta(sourceButton, developmentFixture.scene.toUpperCase());
+  sourceButton.setAttribute("aria-label", `開発fixture · ${developmentFixture.scene}`);
+} else if (!isDesktop) {
   controller.setMode("demo");
   sourceButton.disabled = true;
   const sourceLabel = sourceButton.querySelector<HTMLElement>("span");
@@ -177,6 +233,14 @@ if (!isDesktop) {
 }
 
 const renderSoundButton = (): void => {
+  if (developmentFixture) {
+    soundButton.disabled = true;
+    setMenuMeta(soundButton, "固定Fixtureでは無音");
+    soundButton.setAttribute("aria-label", "サウンド · 固定Fixtureでは無音");
+    soundButton.setAttribute("aria-pressed", "false");
+    soundButton.title = "固定Fixtureではサウンドを再生しません";
+    return;
+  }
   soundButton.disabled = !audio.supported;
   setMenuMeta(soundButton, audio.supported ? (audio.enabled ? "ON" : "OFF") : "利用不可");
   soundButton.setAttribute("aria-label", audio.supported ? `サウンド · ${audio.enabled ? "ON" : "OFF"}` : "サウンド · 利用不可");
@@ -185,15 +249,18 @@ const renderSoundButton = (): void => {
 };
 
 const renderQuietButton = (): void => {
-  const quiet = settings.isQuiet();
-  quietButton.textContent = quiet ? "WAKE" : "QUIET";
+  const quiet = readEffectiveQuiet();
+  setToolbarLabel(quietButton, quiet ? "再開" : "幕間");
+  quietButton.setAttribute("aria-label", quiet ? "WAKE · 幕間を終了（Q）" : "QUIET · 30分の幕間（Q）");
   quietButton.setAttribute("aria-pressed", String(quiet));
 };
 renderSoundButton();
 renderQuietButton();
 settings.addEventListener("change", renderQuietButton);
 
-const unlockAudio = (): void => { void audio.unlock(); };
+const unlockAudio = (): void => {
+  if (!developmentFixture) void audio.unlock();
+};
 window.addEventListener("pointerdown", unlockAudio, { passive: true });
 window.addEventListener("keydown", unlockAudio);
 
@@ -201,7 +268,8 @@ playButton.addEventListener("click", () => {
   toolbar.classList.remove("is-inviting");
   const enabled = interaction?.toggle() ?? false;
   playButton.setAttribute("aria-pressed", String(enabled));
-  playButton.textContent = enabled ? "DONE" : "PLAY";
+  setToolbarLabel(playButton, enabled ? "完了" : "遊ぶ");
+  playButton.setAttribute("aria-label", enabled ? "PLAYを終了（P）" : "PLAY · キャラクターへ触る（P）");
   if (enabled && !settings.get().playIntroSeen) showPlayIntro(true);
 });
 ledgerButton.addEventListener("click", () => {
@@ -210,6 +278,7 @@ ledgerButton.addEventListener("click", () => {
   controlCenter.toggle();
 });
 quietButton.addEventListener("click", () => {
+  if (developmentFixture) return;
   if (settings.isQuiet()) settings.update({ attention: { ...settings.get().attention, quietUntil: 0 } });
   else settings.quietFor(30);
   renderQuietButton();
@@ -235,6 +304,7 @@ settingsButton.addEventListener("click", () => {
   controlCenter.openSettings();
 });
 soundButton.addEventListener("click", async () => {
+  if (developmentFixture) return;
   await audio.toggle();
   renderSoundButton();
 });
@@ -253,11 +323,22 @@ void platform.getAutostart().then((enabled) => {
 });
 void platform.registerToggleShortcut(() => void platform.showWindow());
 
-window.addEventListener("beforeunload", () => controller.stop(), { once: true });
+const updateLayoutMode = (): void => {
+  shell.dataset.layout = readStageLayoutMode(shell.clientWidth);
+};
+const layoutObserver = new ResizeObserver(updateLayoutMode);
+layoutObserver.observe(shell);
+updateLayoutMode();
+
+window.addEventListener("beforeunload", () => {
+  layoutObserver.disconnect();
+  controller.stop();
+}, { once: true });
 window.addEventListener("keydown", (event) => {
+  if (shouldIgnoreGlobalShortcut(event, shell, !menu.hidden)) return;
   const key = event.key.toLowerCase();
-  if (key === "d" && isDesktop) controller.setMode(currentSource === "codex" ? "demo" : "codex");
-  if (key === "m" && !event.repeat) void audio.toggle().then(renderSoundButton);
+  if (key === "d" && isDesktop && !developmentFixture) controller.setMode(currentSource === "codex" ? "demo" : "codex");
+  if (key === "m" && !event.repeat && !developmentFixture) void audio.toggle().then(renderSoundButton);
   if (key === "i" && !event.repeat) experience.toggleRealityCheck();
   if (key === "p" && !event.repeat) playButton.click();
   if (key === "l" && !event.repeat) controlCenter.toggle();
