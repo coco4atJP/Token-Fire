@@ -18,6 +18,17 @@ if (packageJson.version !== tauri.version || packageJson.version !== cargoVersio
 if (tauri.plugins?.updater || tauri.bundle?.createUpdaterArtifacts) {
   errors.push("Updater runtime is active before D-014 external-communication review and release-key approval");
 }
+for (const requiredBundleIcon of [
+  "icons/32x32.png",
+  "icons/128x128.png",
+  "icons/128x128@2x.png",
+  "icons/icon.icns",
+  "icons/icon.ico",
+]) {
+  if (!tauri.bundle?.icon?.includes(requiredBundleIcon)) {
+    errors.push(`Tauri bundle icon is missing: ${requiredBundleIcon}`);
+  }
+}
 for (const path of [
   "PRIVACY.md",
   "docs/RELEASE.md",
