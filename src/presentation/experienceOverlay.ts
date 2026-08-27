@@ -89,8 +89,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
   }
 
   setConnectionLabel(label: string): void {
-    this.connectionLabel = label;
-    this.tickerSignal.textContent = label;
+    this.connectionLabel = formatConnectionLabel(label);
+    this.tickerSignal.textContent = this.connectionLabel;
   }
 
   update(world: WorldState, snapshot: AgentSnapshot, context?: PresentationContext): void {
@@ -101,16 +101,19 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       .map((id) => world.characters[id])
       .filter((state) => state.line && state.until > world.elapsed)
       .sort((left, right) => right.until - left.until)[0];
-    const agents = snapshot.activeSessions === 1 ? "AGENT" : "AGENTS";
     this.root.dataset.scene = scene;
     const quiet = context?.quiet ?? false;
     const placard = readPlacardCopy(scene, snapshot, quiet, event);
+    const compact = this.root.closest<HTMLElement>(".shell")?.dataset.layout === "compact";
     this.ticker.dataset.tone = placard.tone;
     this.ticker.dataset.sceneLabel = scene.replace("-", " ").toUpperCase();
-    this.tickerTitle.textContent = placard.title;
-    this.tickerLine.textContent = placard.line ?? (snapshot.active
-      ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} ${agents} · +${snapshot.tokenDelta} TOK`
-      : `RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}% · TREE ${metrics.livingTrees}`);
+    this.tickerTitle.textContent = compact ? compactPlacardTitle(scene) : placard.title;
+    const defaultLine = snapshot.active
+      ? `${snapshot.effort.toUpperCase()} · A${Math.max(1, snapshot.activeSessions)} · +${snapshot.tokenDelta} TOK`
+      : `RAIN${Math.round(world.rain * 100)} · H2O${metrics.waterPercent} · T${metrics.livingTrees}`;
+    this.tickerLine.textContent = compact
+      ? compactPlacardLine(scene, snapshot, quiet, event, defaultLine)
+      : fitPlacardLine(placard.line ?? defaultLine);
     this.tickerSignal.textContent = this.connectionLabel;
     this.ceremonyStamp.hidden = scene !== "kirari";
     this.updateSpeech(world, snapshot, scene === "zero-output" || scene === "approval" ? null : speaker?.id ?? null);
@@ -232,6 +235,59 @@ const readPlacardCopy = (
   }
   if (event) return { tone: event.tone, title: WORLD_SCENE_LABELS[scene], line: event.line };
   return { tone: scene, title: WORLD_SCENE_LABELS[scene], line: null };
+};
+
+const fitPlacardLine = (line: string): string => {
+  const normalized = line.replace(/\s+/g, " ").trim();
+  let widthUnits = 0;
+  let fitted = "";
+  for (const character of normalized) {
+    const units = /[\u0000-\u00ff]/.test(character) ? 1 : 2;
+    if (widthUnits + units > 24) break;
+    widthUnits += units;
+    fitted += character;
+  }
+  return fitted.trimEnd();
+};
+
+const compactPlacardTitle = (scene: ReturnType<typeof readWorldScene>): string => ({
+  poka: "POKA · IDLE",
+  mera: "MERA · ACTIVE",
+  gogo: "GOGO · HIGH",
+  approval: "APPROVAL · STOP",
+  kirari: "KIRARI · DONE",
+  "zero-output": "ERROR · ZERO",
+  meguri: "MEGURI · REST",
+})[scene];
+
+const compactPlacardLine = (
+  scene: ReturnType<typeof readWorldScene>,
+  snapshot: AgentSnapshot,
+  quiet: boolean,
+  event: WorldState["activeEvent"],
+  defaultLine: string,
+): string => {
+  if (scene === "zero-output") return "停止 · 成果ゼロ";
+  if (scene === "approval") return "停止 · 判断待ち";
+  if (scene === "kirari" || snapshot.status === "completed") return "完了 · 回復へ";
+  if (quiet) return snapshot.active ? "操業中 · 演出抑制" : "回復中 · 在庫補充";
+  if (event) return fitPlacardLine(event.title).slice(0, 16).trimEnd();
+  if (snapshot.active) return `${snapshot.effort.toUpperCase()} · A${Math.max(1, snapshot.activeSessions)} · +${snapshot.tokenDelta}T`;
+  return defaultLine.replace("RAIN", "R").replace("H2O", "W");
+};
+
+export const formatConnectionLabel = (label: string): string => {
+  const normalized = label.replace(/\s+/g, " ").trim();
+  const [source = "CODEX", detail = ""] = normalized.split("·").map((part) => part.trim());
+  const compactDetail = detail
+    .replace(/\b(Works|Factory|Project|Session)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 2)
+    .join(" ");
+  const compact = compactDetail ? `${source} · ${compactDetail}` : source;
+  return compact.length <= 22 ? compact : compact.slice(0, 22).trimEnd();
 };
 
 const setInert = (element: HTMLElement, inert: boolean): void => {

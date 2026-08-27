@@ -75,4 +75,44 @@ describe("v3保存互換", () => {
     expect(settings.openingBriefingSeen).toBe(true);
     expect(localStorage.getItem("token-fire.settings.v2")).toBeNull();
   });
+
+  it("v2単一worldをLegacy Factoryへ移行し、元データを消さない", () => {
+    localStorage.setItem("token-fire.world.v2", JSON.stringify({
+      tokenProduced: 9_876,
+      water: 0.31,
+      heat: 0.82,
+      debt: { totalTokensBurned: 9_876 },
+    }));
+    const persistence = new BrowserWorldPersistence();
+    const legacy = persistence.loadProject({ key: "legacy", label: "Legacy Factory", path: null, model: null });
+    expect(legacy.tokenProduced).toBe(9_876);
+    expect(legacy.debt.totalTokensBurned).toBe(9_876);
+    expect(localStorage.getItem("token-fire.world.v2")).not.toBeNull();
+  });
+
+  it("保存直後の再生成でWorldとReplayを復元する", () => {
+    const persistence = new BrowserWorldPersistence();
+    const world = createWorld({ projectKey: "recovery", projectLabel: "Recovery" });
+    world.tokenProduced = 321;
+    world.replays = [{
+      id: "crash-replay", projectKey: "recovery", projectLabel: "Recovery", sessionId: null,
+      title: "Crash recovery", model: null, startedAt: 1, endedAt: 2, totalTokens: 321, wasted: false,
+      frames: [],
+    }];
+    persistence.save(world);
+    const recovered = new BrowserWorldPersistence().loadProject({ key: "recovery", label: "Recovery", path: null, model: null });
+    expect(recovered.tokenProduced).toBe(321);
+    expect(recovered.replays.map((replay) => replay.id)).toEqual(["crash-replay"]);
+  });
+
+  it("破損JSONと未知future versionを実行せず、安全な新規worldへ退避する", () => {
+    localStorage.setItem("token-fire.worlds.v3", "{broken");
+    expect(new BrowserWorldPersistence().listProjects()).toEqual([]);
+
+    const future = JSON.stringify({ version: 999, projects: { future: { executable: "never" } } });
+    localStorage.setItem("token-fire.worlds.v3", future);
+    const persistence = new BrowserWorldPersistence();
+    expect(persistence.listProjects()).toEqual([]);
+    expect(localStorage.getItem("token-fire.worlds.v3")).toBe(future);
+  });
 });

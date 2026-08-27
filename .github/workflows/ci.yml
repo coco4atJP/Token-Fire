@@ -27,7 +27,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test frontend and deterministic Pixi render
+        run: npm test
+
+      - name: Capture baseline visual differences
+        run: npm run capture:diff
 
       - name: Build frontend
         shell: bash
@@ -57,4 +63,5 @@ jobs:
           path: |
             frontend-build.log
             cargo-check.log
+            artifacts/ui-audit/improvement-v1-diff/
           if-no-files-found: ignore

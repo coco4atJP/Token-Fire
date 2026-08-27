@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReplayFrame, ReplaySession } from "../domain/experienceData";
-import { readReplayFrameProgress, selectReplayRepresentativeFrame } from "./replayExporter";
+import { readReplayEventMotion, readReplayFrameProgress, selectReplayRepresentativeFrame } from "./replayExporter";
 
 const frame = (t: number, energyLevel: number, heat = 0.2): ReplayFrame => ({
   t,
@@ -46,5 +46,21 @@ describe("Replay代表場面", () => {
     const session = { ...replay(false), startedAt: 10_000, endedAt: 13_000 };
     expect(readReplayFrameProgress(session, frame(1.5, 2))).toBe(0.5);
     expect(readReplayFrameProgress(session, frame(8, 2))).toBe(1);
+  });
+
+  it("既存event列の開始frameからimpulse ageを決定的に再構成する", () => {
+    const frames = [
+      { ...frame(0, 2), event: null },
+      { ...frame(1, 3), event: "token-burn" },
+      { ...frame(1.25, 4), event: "token-burn" },
+      { ...frame(2, 5), event: null },
+    ];
+    const session = { ...replay(false), frames };
+    expect(readReplayEventMotion(session, frames[0])).toBeNull();
+    expect(readReplayEventMotion(session, frames[1])?.ageSeconds).toBe(0);
+    expect(readReplayEventMotion(session, frames[1])?.impulse).not.toBe(0);
+    expect(readReplayEventMotion(session, frames[2])?.ageSeconds).toBe(0.25);
+    expect(readReplayEventMotion(session, frames[2])).toEqual(readReplayEventMotion(session, { ...frames[2] }));
+    expect(Number.isFinite(readReplayEventMotion(session, frames[2])?.impulse)).toBe(true);
   });
 });

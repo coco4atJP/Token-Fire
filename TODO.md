@@ -1,5 +1,46 @@
 # Token-Fire TODO
 
+## 完全改善計画 v1
+
+境界: 表現層と配布品質に限定する。Codex入力Adapter、Token会計、24段階の相対Energy尺度、保存上限、Project Key、Replay保存形式は変更しない。変更が必要になった場合は、実装前に該当Decisionを更新して合意を取り直す。
+
+### P0 — 検証基盤
+
+- [x] `scripts/capture-ui.mjs`へheadless Chrome／DPR 2／1px正規化／console error収集を恒久化
+- [x] 現行7 scene × 3 viewportを再基準化し、`design-qa.md`へmanifestと性能証跡を記録
+- [x] 同一fixtureを2回captureしてpixel一致を検証するVitest browser gateを追加
+- [x] baseline指定時のpixel差分値・bounds・可視diff PNGをcapture pipelineへ追加
+- [x] 固定1/120秒springの収束・NaN不在・seek再現性試験を追加
+
+### P1 — 絵の密度と色調
+
+- [x] 空の彩度、静的な薄雲、遠景の丘を調整
+- [x] 床の中景へ枕木、丸太置き場、空荷車レールを段階表示
+- [x] 操業札の接続文言を内容側で短縮し、三点リーダを出さない
+- [x] 煙、水際、Compact toolbar iconを舞台美術へ馴染ませる
+
+### P2 — 動きの文法
+
+- [x] 固定1/120秒springとsnappy／pop／bouncy／gel／soft／instant tokenを追加
+- [x] hop／hammer／celebrationへ体積保存squash、anticipation、velocity impulseを適用
+- [x] 道具、煙突、吊り糸、視線の二次運動と一拍一変化を適用
+- [x] ReplayFrame形式を変えず、既存`t + event`からevent impulseを固定step再構成
+- [x] 全キャラクターへ0.2Hz台の呼吸とseeded 2〜5秒blinkを適用
+
+### P3 — 音と間
+
+- [x] 「木・真鍮・遠い炉」の音色へ揃え、発音を一拍一変化へ制限
+- [x] Quiet／Calm／密度制御とfixture無音を自動試験（実Audio graphのgain目標を含む）
+
+### P4 — 配布品質
+
+- [x] macOS／Windows署名、Notarization、Updater、GitHub Releasesの設定と運用文書
+- [x] Windows証明書thumbprintの動的Tauri設定と、macOS／Windows署名検証をrelease workflowへ追加
+- [x] macOS arm64 release app／DMGを生成し、DMG checksumとadhoc再署名可能性を検証
+- [x] 保存移行・クラッシュ復元の自動試験
+- [x] OS別E2E matrixとプライバシー説明
+- [ ] macOS／Windows実機でDPI、Tray、Quiet、Replay、Installer／Uninstallerを最終確認
+
 A1 / A3 / B1 / B2 / B3 / C3 / D1 / E1 / E2 / E3 / F1 / F2 / G1 の体験実装は完了済み。
 E1は動画を常時保存せず、軽量な動作データを保持し、共有時だけWebMまたはJSONへ生成する方式を採用する。
 
@@ -41,18 +82,20 @@ F3へ進む前に、紙芝居工場の外見と常駐UIをv0.2の表示契約へ
 
 F2.5 Full Redesign Gate完了後、機能・体験実装とは分離して公開配布前に以下を行う。
 
-- [ ] Windows / macOS の実機Tauriビルド
+- [x] macOS arm64 release app／DMGのローカルTauriビルド
+- [ ] Windows x86_64／macOS x86_64のCI・実機Tauriビルド
 - [ ] macOSコード署名・Notarization
 - [ ] Windowsコード署名
 - [ ] インストーラー生成とアンインストール確認
-- [ ] Tauri Updaterの署名鍵・更新エンドポイント設計
-- [ ] GitHub Releasesによる配布フロー
-- [ ] v2 → v3および将来バージョンのセーブデータ移行試験
+- [x] Tauri Updaterの署名鍵・更新エンドポイント設計（runtimeはD-014更新まで無効）
+- [x] GitHub Releasesによるdraft配布フロー
+- [x] v2 → v3および将来バージョンのセーブデータ移行試験
 - [ ] Tray、自動起動、通知、グローバルショートカットのOS別E2E
 - [ ] Fullscreenアプリ・画面共有・Do Not DisturbとAttention PolicyのOS別連動
 - [ ] 透明ウィンドウ・DPI・マルチモニター・スリープ復帰確認
-- [ ] クラッシュ後のWorld／Replay復元試験
-- [ ] 診断ログとクラッシュレポートの方針決定
-- [ ] プライバシー説明（CodexローカルJSONL、任意天気座標、外部送信範囲）
+- [x] 保存直後・破損JSON・未知versionでのWorld／Replay自動復元試験
+- [ ] OS process強制終了後のWorld／Replay実機復元試験
+- [x] 診断ログとクラッシュレポートの方針決定
+- [x] プライバシー説明（CodexローカルJSONL、任意天気座標、外部送信範囲）
 
 F3では新しい遊びを追加せず、現在の体験を安全に配布・更新できる状態へ固める。

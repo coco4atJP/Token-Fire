@@ -133,6 +133,19 @@ export class AppController {
     return this.characterDirector;
   }
 
+  /** 開発fixtureのpixel検証用。simulationを進めず、同じWorldStateを明示的に再描画する。 */
+  pausePresentationForCapture(): void {
+    cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = 0;
+  }
+
+  /** `pausePresentationForCapture`後に同じworld.elapsedから一枚だけ再構成する。 */
+  renderPresentationForCapture(): void {
+    if (this.stopped) return;
+    this.beforePresent();
+    this.present(this.readPresentationContext());
+  }
+
   private readonly tick = (now: number): void => {
     if (this.stopped || document.visibilityState === "hidden") return;
     this.advanceSimulationTo(now);

@@ -14,6 +14,7 @@ export interface DevelopmentFixture {
   quiet: boolean;
   width: number;
   height: number;
+  elapsed: number;
 }
 
 const SCENES = new Set<WorldScene>(["poka", "mera", "gogo", "approval", "kirari", "zero-output", "meguri"]);
@@ -33,6 +34,7 @@ export const readDevelopmentFixture = (search: string, enabled: boolean): Develo
   const requestedGrowth = Number(params.get("tfGrowth") ?? Number.NaN);
   const requestedWidth = Number(params.get("tfWidth") ?? Number.NaN);
   const requestedHeight = Number(params.get("tfHeight") ?? Number.NaN);
+  const requestedElapsed = Number(params.get("tfElapsed") ?? Number.NaN);
   return {
     scene: requestedScene,
     timePhase: requestedTime && TIMES.has(requestedTime) ? requestedTime : "dusk",
@@ -41,6 +43,7 @@ export const readDevelopmentFixture = (search: string, enabled: boolean): Develo
     quiet: params.get("tfQuiet") === "1" || params.get("tfQuiet") === "true",
     width: Number.isFinite(requestedWidth) ? Math.max(320, Math.min(1_600, Math.floor(requestedWidth))) : 560,
     height: Number.isFinite(requestedHeight) ? Math.max(220, Math.min(1_200, Math.floor(requestedHeight))) : 350,
+    elapsed: Number.isFinite(requestedElapsed) ? Math.max(0, Math.min(86_400, requestedElapsed)) : 120,
   };
 };
 
@@ -135,7 +138,7 @@ export const applyDevelopmentWorldFixture = (world: WorldState, fixture: Develop
   world.harvestProgress = 0;
   world.combustionPulse = fixture.scene === "mera" || fixture.scene === "gogo" ? 0.62 : 0;
   world.factoryPulse = 0.42;
-  world.elapsed = 120;
+  world.elapsed = fixture.elapsed;
   world.quoteTimer = 0;
   world.quoteVisible = false;
   world.rngState = 0x5f3759df;

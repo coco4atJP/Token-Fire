@@ -16,6 +16,16 @@ import type { PresentationMotionPolicy } from "./presentationMotionPolicy";
 import { SpriteAtlas, type ExpressionFrame, type SpriteKey } from "./spriteAtlas";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
 import { readWorldPatina, worldPatinaSignature, type WorldPatina } from "./worldPatina";
+import {
+  blinkOpennessAt,
+  breathingScaleAt,
+  delayedFollow,
+  sampleHammerMotion,
+  sampleHopMotion,
+  samplePopInScale,
+  sampleSecondaryFollowAt,
+  volumePreservingScale,
+} from "./motion/spring";
 
 const WORLD_WIDTH = STAGE_WIDTH;
 const WORLD_HEIGHT = STAGE_HEIGHT;
@@ -29,7 +39,17 @@ interface SpriteOptions {
   anchorY?: number;
   expressionFrame?: ExpressionFrame;
   tint?: number;
+  stretch?: number;
 }
+
+const CHARACTER_MOTION_SEEDS: Record<CharacterId, number> = {
+  hinoko: 11,
+  mebuki: 23,
+  fuwame: 37,
+  sumi: 41,
+  mizumo: 53,
+  kururi: 67,
+};
 
 const CHARACTER_EXPRESSION_FRAMES: Record<CharacterId, Record<CharacterMood, ExpressionFrame>> = {
   hinoko: { proud: 2, busy: 2, sleepy: 1, scheming: 3, chill: 1, surprised: 4 },
@@ -283,7 +303,7 @@ export class PixiRenderer implements WorldRenderer {
 
     this.drawBackdrop(active);
     this.drawStageFloor(active);
-    this.drawEnvironmentDecor(world);
+    this.drawEnvironmentDecor(world, active);
     const forge = SCENE_LAYOUT.forge;
     this.drawFactoryGrowth(
       world.growthLevel,
@@ -365,7 +385,7 @@ export class PixiRenderer implements WorldRenderer {
     }
   }
 
-  private drawEnvironmentDecor(world: WorldState): void {
+  private drawEnvironmentDecor(world: WorldState, active: boolean): void {
     const timeTint = {
       dawn: { color: 0xf29a55, alpha: 0.13 },
       day: { color: 0xffffff, alpha: 0 },
@@ -373,6 +393,37 @@ export class PixiRenderer implements WorldRenderer {
       night: { color: 0x172957, alpha: 0.34 },
     }[world.environment.timePhase];
     if (timeTint.alpha > 0) this.environmentDecor.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(timeTint);
+
+    // duskの派手さを中性紙色で約12%だけ抑え、背景画の上へ薄い紙レイヤーを重ねる。
+    if (world.environment.timePhase === "dusk") {
+      this.environmentDecor.rect(0, 0, WORLD_WIDTH, 121).fill({ color: 0x786a5f, alpha: 0.12 });
+    }
+    const cloudColor = active ? 0x5c4d49 : 0xd9e1d0;
+    const cloudAlpha = active ? 0.12 : 0.16;
+    for (const cloud of [
+      { x: 68, y: 43, width: 48, height: 8 },
+      { x: 171, y: 59, width: 66, height: 9 },
+      { x: 273, y: 35, width: 39, height: 7 },
+    ]) {
+      this.environmentDecor
+        .ellipse(cloud.x, cloud.y, cloud.width, cloud.height)
+        .ellipse(cloud.x - cloud.width * 0.28, cloud.y + 2, cloud.width * 0.54, cloud.height * 0.72)
+        .fill({ color: cloudColor, alpha: cloudAlpha });
+    }
+    const hill = active ? 0x4f4138 : 0x50634d;
+    this.environmentDecor
+      .moveTo(0, 126)
+      .lineTo(0, 116)
+      .lineTo(38, 104)
+      .lineTo(77, 114)
+      .lineTo(122, 96)
+      .lineTo(164, 113)
+      .lineTo(210, 101)
+      .lineTo(256, 115)
+      .lineTo(320, 98)
+      .lineTo(320, 132)
+      .closePath()
+      .fill({ color: hill, alpha: 0.22 });
 
     const weather = world.environment.weather;
     if (weather === "cloudy" || weather === "fog") {
@@ -438,6 +489,28 @@ export class PixiRenderer implements WorldRenderer {
   }
 
   private drawPatina(patina: WorldPatina): void {
+    const railLength = patina.railSegments * 26;
+    if (railLength > 0) {
+      this.factoryGrowth
+        .moveTo(61, 176)
+        .lineTo(61 + railLength, 171)
+        .moveTo(64, 181)
+        .lineTo(64 + railLength, 176)
+        .stroke({ color: 0x52463b, width: 1.25, alpha: 0.68 });
+    }
+    for (let index = 0; index < patina.sleepers; index += 1) {
+      const x = 65 + index * 17;
+      this.factoryGrowth
+        .moveTo(x, 171)
+        .lineTo(x + 5, 183)
+        .stroke({ color: 0x6b452b, width: 2.4, alpha: 0.72 });
+    }
+    for (let index = 0; index < patina.logStacks; index += 1) {
+      this.sprite(this.patinaSprites, "logs", 84 + index * 19, 166 - index * 2, 25, 17, {
+        flipX: index % 2 === 1,
+        alpha: 0.82,
+      });
+    }
     if (this.atlas.has("patinaBentFence")) {
       for (let index = 0; index < patina.bentFence; index += 1) {
         this.sprite(this.patinaSprites, "patinaBentFence", 67 + index * 49, 174 - index * 3, 47, 20, {
@@ -488,8 +561,16 @@ export class PixiRenderer implements WorldRenderer {
     const waterHeight = Math.max(8, 27 * world.water);
     this.scenery
       .ellipse(278, waterY, 37, waterHeight)
-      .fill({ color: world.heat > 0.67 ? 0x7a8178 : 0x409bb7, alpha: 0.86 })
-      .stroke({ color: world.heat > 0.67 ? 0xb5a985 : 0xa8edf1, width: 1.1, alpha: 0.55 });
+      .fill({ color: world.heat > 0.67 ? 0x7a8178 : 0x568f9f, alpha: 0.84 })
+      .stroke({ color: world.heat > 0.67 ? 0xb5a985 : 0xc4d7c2, width: 1.1, alpha: 0.62 });
+    for (const [x, y, radius, color] of [
+      [252, waterY - 1, 2.2, 0xd8d7b2],
+      [268, waterY - waterHeight * 0.42, 1.6, 0xe9e1c6],
+      [295, waterY + 1, 2.5, 0x82956f],
+      [306, waterY + 3, 1.8, 0x6f855e],
+    ] as const) {
+      this.scenery.circle(x, y, radius).fill({ color, alpha: 0.58 });
+    }
     if (world.heat < 0.72) {
       for (let index = 0; index < 3; index += 1) {
         const x = 257 + ((this.motionTime(world.elapsed) * 8 + index * 17) % 43);
@@ -572,14 +653,15 @@ export class PixiRenderer implements WorldRenderer {
       forge.height * pulse * forgeScale,
       { alpha: operating ? 1 : industrialScene ? 0.74 : 0.42 },
     );
+    this.drawFactorySecondaryMotion(world, forgeX, forgeY, forgeScale, operating);
     if (operating) {
       this.sprite(this.scenerySprites, "smoke", forgeX + 1, 84, 27, 39, {
         rotation: Math.sin(this.motionTime(world.elapsed) * 1.4) * 0.08,
-        alpha: 0.5 + world.pollution * 0.34,
+        alpha: 0.39 + world.pollution * 0.18,
       });
       this.sprite(this.scenerySprites, "smoke", forgeX + 20, 79, 20, 31, {
         rotation: -Math.sin(this.motionTime(world.elapsed) * 1.1) * 0.07,
-        alpha: 0.38 + world.pollution * 0.3,
+        alpha: 0.32 + world.pollution * 0.18,
       });
       if (scene === "gogo") this.drawAuxiliaryForge(world);
     } else if (lineStopped) {
@@ -624,15 +706,48 @@ export class PixiRenderer implements WorldRenderer {
       } else if (index < 21) {
         const stack = index - 18;
         const x = forgeX + 30 + stack * 8;
-        const height = 28 + stack * 5;
-        this.factoryGrowth.roundRect(x - 3, forgeY - height - 31, 6, height, 2).fill({ color: dark, alpha: 0.78 });
-        this.factoryGrowth.rect(x - 5, forgeY - height - 34, 10, 4).fill({ color: metal, alpha: 0.76 });
+        // 本体の根元だけを静的署名へ置き、細い煙突は毎frameの二次運動で描く。
+        this.factoryGrowth.roundRect(x - 4, forgeY - 35, 8, 5, 2).fill({ color: dark, alpha: 0.78 });
+        this.factoryGrowth.rect(x - 5, forgeY - 37, 10, 3).fill({ color: metal, alpha: 0.76 });
       } else {
         const vent = index - 21;
         const x = forgeX - 28 + vent * 22;
         this.factoryGrowth.circle(x, forgeY - 67, 7).stroke({ color: metal, width: 2, alpha: 0.74 });
         this.factoryGrowth.moveTo(x - 4, forgeY - 67).lineTo(x + 4, forgeY - 67).moveTo(x, forgeY - 71).lineTo(x, forgeY - 63).stroke({ color: dark, width: 1, alpha: 0.78 });
       }
+    }
+  }
+
+  private drawFactorySecondaryMotion(
+    world: WorldState,
+    forgeX: number,
+    forgeY: number,
+    scale: number,
+    operating: boolean,
+  ): void {
+    const stackCount = Math.max(0, Math.min(3, world.growthLevel - 18));
+    if (stackCount === 0) return;
+    const motion = sampleSecondaryFollowAt(
+      this.motionTime(world.elapsed),
+      this.motion.motionScale > 0 && world.activeEvent ? world.eventElapsed : null,
+    );
+    const metal = operating ? 0xa8794c : 0x71856d;
+    const dark = operating ? 0x4a342a : 0x465847;
+    for (let stack = 0; stack < stackCount; stack += 1) {
+      const x = forgeX + 30 + stack * 8;
+      const baseY = forgeY - 31;
+      const height = (28 + stack * 5) * scale;
+      const sway = motion.chimney * (0.55 + stack * 0.16) * this.motion.motionScale;
+      this.scenery
+        .moveTo(x - 3 * scale, baseY)
+        .lineTo(x + sway - 3 * scale, baseY - height)
+        .lineTo(x + sway + 3 * scale, baseY - height)
+        .lineTo(x + 3 * scale, baseY)
+        .closePath()
+        .fill({ color: dark, alpha: 0.78 });
+      this.scenery
+        .rect(x + sway - 5 * scale, baseY - height - 4 * scale, 10 * scale, 4 * scale)
+        .fill({ color: metal, alpha: 0.76 });
     }
   }
 
@@ -645,8 +760,8 @@ export class PixiRenderer implements WorldRenderer {
     this.scenery.roundRect(181, 132, 22, 31, 5).fill({ color: 0x4b3730, alpha: 0.94 }).stroke({ color: 0xb27c45, width: 1.4, alpha: 0.82 });
     this.scenery.circle(192, 151, 6 * pulse).fill({ color: 0xff8c2d, alpha: 0.72 }).stroke({ color: 0xffcf6c, width: 1, alpha: 0.86 });
     this.scenery.moveTo(202, 142).lineTo(218, 142).lineTo(218, 131).stroke({ color: 0xa8794c, width: 2.4, alpha: 0.76 });
-    this.sprite(this.scenerySprites, "smoke", 239, 67, 31, 44, { rotation: Math.sin(this.motionTime(world.elapsed) * 1.7) * 0.1, alpha: 0.72 });
-    this.sprite(this.scenerySprites, "smoke", 270, 60, 25, 38, { rotation: -Math.sin(this.motionTime(world.elapsed) * 1.3) * 0.09, alpha: 0.62 });
+    this.sprite(this.scenerySprites, "smoke", 239, 67, 31, 44, { rotation: delayedFollow(this.motionTime(world.elapsed), 1.7, 0.12, 0.1), alpha: 0.54 });
+    this.sprite(this.scenerySprites, "smoke", 270, 60, 25, 38, { rotation: -delayedFollow(this.motionTime(world.elapsed), 1.3, 0.2, 0.09), alpha: 0.5 });
     for (let index = 0; index < 3; index += 1) {
       const phase = (this.motionTime(world.elapsed) * 0.6 + index * 0.31) % 1;
       this.effects.circle(308 + Math.sin(index) * 3, 111 - phase * 25, 3 + phase * 4).fill({ color: 0x3a3435, alpha: (1 - phase) * 0.32 });
@@ -671,15 +786,6 @@ export class PixiRenderer implements WorldRenderer {
         .moveTo(point.x, point.y - 2)
         .lineTo(point.x + 2, 192)
         .stroke({ color: 0x6b4328, width: 2.2, alpha: 0.72 });
-    }
-    if (!active) {
-      const fuwame = SCENE_LAYOUT.recovery.fuwame;
-      this.staticRigging
-        .moveTo(fuwame.x - 8, 9)
-        .lineTo(fuwame.x - 7, fuwame.y - 18)
-        .moveTo(fuwame.x + 8, 9)
-        .lineTo(fuwame.x + 7, fuwame.y - 18)
-        .stroke({ color: 0xd8c5a2, width: 0.65, alpha: 0.48 });
     }
   }
 
@@ -713,13 +819,15 @@ export class PixiRenderer implements WorldRenderer {
     const isStriking = snapshot.status === "working";
     const toolBoost = snapshot.tool === "apply_patch" ? 1.18 : snapshot.tool === "shell" ? 1.08 : 1;
     const hammerSpeed = (4.8 + intensity * 1.35) * toolBoost;
-    const hammerCycle = this.motionTime(world.elapsed) * hammerSpeed;
+    const motionTime = this.motionTime(world.elapsed);
+    const hammerCycle = motionTime * hammerSpeed;
+    const springHammer = sampleHammerMotion(motionTime, hammerSpeed);
     const hammerSwing = isError
       ? -0.18 + Math.sin(this.motionTime(world.elapsed) * 11) * 0.06
       : isHolding
         ? -0.88 + Math.sin(this.motionTime(world.elapsed) * 1.8) * 0.08
-        : -0.88 + ((Math.sin(hammerCycle) + 1) * 0.5) * 1.05;
-    const impact = isStriking ? Math.pow(Math.max(0, Math.sin(hammerCycle)), 7) : 0;
+        : springHammer.angle;
+    const impact = isStriking ? springHammer.impact : 0;
     const emberBob = Math.sin(this.motionTime(world.elapsed) * (isHolding ? 2.2 : 5.6)) * (isHolding ? 0.45 : 0.95) - impact * 1.15;
 
     const route = layout.cart.maxX - layout.cart.minX;
@@ -764,6 +872,7 @@ export class PixiRenderer implements WorldRenderer {
       layout.hinoko.y + emberBob + impact * 1.5,
       layout.hinoko.width * (1 + impact * 0.11),
       layout.hinoko.height * (1 - impact * 0.08),
+      { stretch: isStriking ? springHammer.stretch : 1 },
     );
 
     const sumiBob = Math.sin(this.motionTime(world.elapsed) * (6.8 + intensity) + 0.8) * (isHolding ? 0.7 : 1.35);
@@ -854,10 +963,12 @@ export class PixiRenderer implements WorldRenderer {
 
   private drawCeremonyCrew(world: WorldState): void {
     const time = this.motionTime(world.elapsed);
-    const bounce = Math.abs(Math.sin(time * 3.2)) * 1.4;
-    this.character("hinoko", world, 213, 167 - bounce, 49, 61, { expressionFrame: 2 });
-    this.character("sumi", world, 262, 169 + bounce * 0.4, 34, 48, { expressionFrame: 2 });
-    this.character("kururi", world, 155, 169 + bounce * 0.25, 39, 45, { expressionFrame: 2, flipX: true });
+    const hinokoHop = sampleHopMotion(time, 1.8, 0);
+    const sumiHop = sampleHopMotion(time, 1.8, 0.58);
+    const kururiHop = sampleHopMotion(time, 1.8, 1.16);
+    this.character("hinoko", world, 213, 167 + hinokoHop.y * 0.18, 49, 61, { expressionFrame: 2, stretch: hinokoHop.stretch });
+    this.character("sumi", world, 262, 169 + sumiHop.y * 0.14, 34, 48, { expressionFrame: 2, stretch: sumiHop.stretch });
+    this.character("kururi", world, 155, 169 + kururiHop.y * 0.14, 39, 45, { expressionFrame: 2, flipX: true, stretch: kururiHop.stretch });
     this.character("mebuki", world, 294, 169, 29, 41, { expressionFrame: 2, flipX: true, alpha: 0.9 });
     this.character("fuwame", world, 251, 89, 39, 39, { expressionFrame: 1, anchorY: 0.5, alpha: 0.9 });
     this.character("mizumo", world, 319, 168, 22, 31, { expressionFrame: 1, flipX: true, alpha: 0.72 });
@@ -877,7 +988,9 @@ export class PixiRenderer implements WorldRenderer {
 
   private drawRecoveryCrew(world: WorldState): void {
     const layout = SCENE_LAYOUT.recovery;
-    const idleBob = Math.sin(this.motionTime(world.elapsed) * 1.8) * 0.32;
+    const motionTime = this.motionTime(world.elapsed);
+    const idleBob = Math.sin(motionTime * 1.8) * 0.32;
+    const secondary = sampleSecondaryFollowAt(motionTime);
 
     // 休止中の非主役は奥の待機列へ。半透明の巨大像にせず、劇団が居る気配だけ残す。
     this.character("kururi", world, layout.kururi.x, layout.kururi.y, layout.kururi.width, layout.kururi.height, {
@@ -906,6 +1019,12 @@ export class PixiRenderer implements WorldRenderer {
 
     const cloudX = layout.fuwame.x + Math.sin(this.motionTime(world.elapsed) * 0.65) * 11 + world.interaction.fuwameOffsetX;
     const cloudY = layout.fuwame.y + Math.sin(this.motionTime(world.elapsed) * 1.3) * 1.4;
+    this.actorRigging
+      .moveTo(layout.fuwame.x - 8, 9)
+      .lineTo(cloudX - 7 - delayedFollow(this.motionTime(world.elapsed), 0.65, 0.22, 1.8), cloudY - 18)
+      .moveTo(layout.fuwame.x + 8, 9)
+      .lineTo(cloudX + 7 - delayedFollow(this.motionTime(world.elapsed), 0.65, 0.3, 1.4), cloudY - 18)
+      .stroke({ color: 0xd8c5a2, width: 0.65, alpha: 0.48 });
     this.character("fuwame", world, cloudX, cloudY, layout.fuwame.width, layout.fuwame.height, { anchorY: 0.5 });
     if (world.rain > 0.58) {
       this.sprite(this.actorSprites, "rainCloud", cloudX - 34, cloudY + 2, 26, 26, { anchorY: 0.5, alpha: 0.52 });
@@ -924,7 +1043,7 @@ export class PixiRenderer implements WorldRenderer {
       layout.wateringCan.width,
       layout.wateringCan.height,
       {
-        rotation: -0.31 + Math.sin(this.motionTime(world.elapsed) * 2.8) * 0.09,
+        rotation: -0.31 + secondary.tool * 0.1 * this.motion.motionScale,
         anchorX: layout.wateringCan.anchorX,
         anchorY: layout.wateringCan.anchorY,
       },
@@ -953,7 +1072,7 @@ export class PixiRenderer implements WorldRenderer {
     const alpha = Math.max(0, particle.life / particle.maxLife);
     if (particle.kind === "smoke") {
       this.sprite(this.effectSprites, "smoke", particle.x, particle.y, particle.size * 5.4, particle.size * 7.1, {
-        alpha: alpha * 0.6,
+        alpha: alpha * 0.5,
         rotation: particle.x * 0.01,
       });
       return;
@@ -1165,18 +1284,23 @@ export class PixiRenderer implements WorldRenderer {
     const hovered = world.interaction.hovered === id;
     const reacting = life.act === "react" && life.until > world.elapsed;
     const reactionWave = reacting ? Math.abs(Math.sin(this.motionTime(world.elapsed) * 13)) : 0;
-    const squash = reacting ? Math.sin(this.motionTime(world.elapsed) * 13) * 0.045 : 0;
     const scale = hovered ? 1.045 : 1;
-    const blinkPhase = Math.sin(this.motionTime(world.elapsed) * 0.82 + id.length * 1.7);
+    const time = this.motionTime(world.elapsed);
+    const blinkOpenness = this.motion.motionScale === 0 ? 1 : blinkOpennessAt(time, CHARACTER_MOTION_SEEDS[id]);
     const expressionFrame = options.expressionFrame
-      ?? (blinkPhase > 0.986 && !reacting ? CHARACTER_EXPRESSION_FRAMES[id].sleepy : CHARACTER_EXPRESSION_FRAMES[id][life.mood]);
+      ?? (blinkOpenness < 0.22 && !reacting ? CHARACTER_EXPRESSION_FRAMES[id].sleepy : CHARACTER_EXPRESSION_FRAMES[id][life.mood]);
+    const breath = this.motion.motionScale === 0 ? 1 : breathingScaleAt(time, CHARACTER_MOTION_SEEDS[id]);
+    const volume = volumePreservingScale(breath, (options.stretch ?? 1) * (1 - reactionWave * 0.08));
+    const entranceScale = this.motion.motionScale > 0 && reacting && world.activeEvent && world.eventElapsed < 1
+      ? samplePopInScale(world.eventElapsed)
+      : 1;
     this.cutout(
       this.actorSprites,
       id,
       x + life.offsetX,
       y + life.offsetY - reactionWave * 2.2,
-      width * scale * (1 + squash),
-      height * scale * (1 - squash),
+      width * scale * entranceScale * volume.sx,
+      height * scale * entranceScale * volume.sy,
       {
         ...options,
         rotation: (options.rotation ?? 0) + (reacting ? Math.sin(this.motionTime(world.elapsed) * 15) * 0.035 : 0),

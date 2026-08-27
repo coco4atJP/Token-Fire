@@ -21,6 +21,7 @@ import { BrowserWorldPersistence, type WorldPersistence } from "./infrastructure
 import { TokenFireAudioDirector } from "./presentation/audioDirector";
 import { ControlCenter } from "./presentation/controlCenter";
 import { ExperienceAudioDirector } from "./presentation/experienceAudio";
+import { AudioCueGate, audioCueSpacingForMode, isPresentationAudioSuppressed } from "./presentation/audioPacing";
 import { TokenFireExperienceOverlay } from "./presentation/experienceOverlay";
 import { shouldIgnoreGlobalShortcut } from "./presentation/globalShortcut";
 import { InteractionController } from "./presentation/interactionController";
@@ -154,10 +155,16 @@ experience = new TokenFireExperienceOverlay(shell, (open) => {
   setSurfaceOpen(open);
 });
 experience.setConnectionLabel(connectionLabel);
-const audio = new ExperienceAudioDirector(new TokenFireAudioDirector(), {
+const audioCueGate = new AudioCueGate();
+const audioPolicy = {
+  isQuiet: () => isPresentationAudioSuppressed(readEffectiveQuiet(), developmentFixture !== null),
+  minimumCueSpacingMs: () => audioCueSpacingForMode(settings.get().attention.mode),
+};
+const audio = new ExperienceAudioDirector(new TokenFireAudioDirector(audioPolicy, audioCueGate), {
   allowEventSound: () => developmentFixture === null && attention.allowEventSound(),
-  isQuiet: readEffectiveQuiet,
-});
+  isQuiet: audioPolicy.isQuiet,
+  minimumCueSpacingMs: audioPolicy.minimumCueSpacingMs,
+}, audioCueGate);
 const renderer = await PixiRenderer.create(canvas, () =>
   readPresentationMotionPolicy(settings.get(), readEffectiveQuiet()),
 );
@@ -215,6 +222,38 @@ controller.subscribe((world, snapshot) => {
   shell.classList.toggle("reduce-flash", settings.get().attention.reduceFlash);
 });
 controller.start();
+if (developmentFixture && new URLSearchParams(window.location.search).get("tfCapture") === "1") {
+  controller.pausePresentationForCapture();
+  (window as Window & {
+    __tokenFireCapture?: {
+      readonly elapsed: () => number;
+      render: () => string;
+      measure: (samples: number) => { samples: number; p95Ms: number; maxMs: number };
+    };
+  }).__tokenFireCapture = {
+    elapsed: () => controller.getWorld().elapsed,
+    render: () => {
+      controller.renderPresentationForCapture();
+      return canvas.toDataURL("image/png");
+    },
+    measure: (samples) => {
+      const count = Math.max(1, Math.min(600, Math.floor(samples)));
+      const durations: number[] = [];
+      controller.renderPresentationForCapture();
+      for (let index = 0; index < count; index += 1) {
+        const startedAt = performance.now();
+        controller.renderPresentationForCapture();
+        durations.push(performance.now() - startedAt);
+      }
+      durations.sort((left, right) => left - right);
+      return {
+        samples: count,
+        p95Ms: durations[Math.min(count - 1, Math.floor(count * 0.95))],
+        maxMs: durations[count - 1],
+      };
+    },
+  };
+}
 if (!developmentFixture && !settings.get().openingBriefingSeen) requestAnimationFrame(() => briefing.show());
 if (developmentFixture) {
   sourceButton.disabled = true;

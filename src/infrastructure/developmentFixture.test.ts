@@ -7,7 +7,7 @@ describe("development fixture", () => {
   it("本番ではqueryを無効化し、開発時だけ固定sceneを読む", async () => {
     expect(readDevelopmentFixture("?tfFixture=approval", false)).toBeNull();
     const fixture = readDevelopmentFixture("?tfFixture=approval&tfTime=night&tfGrowth=99", true);
-    expect(fixture).toEqual({ scene: "approval", timePhase: "night", weather: "clear", growthLevel: 23, quiet: false, width: 560, height: 350 });
+    expect(fixture).toEqual({ scene: "approval", timePhase: "night", weather: "clear", growthLevel: 23, quiet: false, width: 560, height: 350, elapsed: 120 });
     const world = createWorld();
     applyDevelopmentWorldFixture(world, fixture!);
     const snapshot = await new DevelopmentFixtureSource(fixture!).poll();

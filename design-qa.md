@@ -67,3 +67,52 @@ P0、未解決P1、未解決P2はない。380pxで意図しないclipping／重�
 macOS／WindowsのTauri実機DPI・透明窓・Trayと、実機p95性能計測はリポジトリのF2.5 Gateに未完了項目として残す。これは今回のbrowser Design QAの合否には含めない。
 
 Final result: passed
+
+---
+
+## 完全改善計画 v1 — 2026-08-26再基準化
+
+対象は表現層、検証基盤、配布品質。Codex入力Adapter、Token会計、24段階Energy尺度、保存上限、Project Key、Replay保存形式は変更していない。したがってD-002／D-003／D-004／D-006／D-007／D-018／D-020のDecision更新は不要と判断した。Updater runtimeとendpointも未有効のため、D-014の外部通信既定値は維持している。
+
+### Capture evidence
+
+- P1前baseline: `artifacts/ui-audit/improvement-v1-baseline/`（7 scene × 3 viewport、DPR 2原寸と1px正規化）
+- P1/P2後final: `artifacts/ui-audit/improvement-v1-final/`（同じ21組、全組pixel決定性確認、baseline比較の可視diff PNG 21枚）
+- 30秒motion reference: `artifacts/ui-audit/improvement-v1-motion/contact-sheet.png`と`motion-reference.json`
+- warm render性能: `artifacts/ui-audit/improvement-v1-performance/capture-manifest.json`
+- 元レビュー: `artifacts/ui-audit/review-2026-08-25/`（ユーザー提供証跡として保持）
+
+`scripts/capture-ui.mjs`はinstalled Chromeを`headless=new`で起動し、DPR 2で描画した@2x PNGと、1 image px / 1 CSS pxへ正規化したPNGを同時保存する。各captureはbrowser console error 0、viewport overflow 0、操業札12px以上、札内clipping 0、toolbar 32px以上を自動判定する。Pixi決定性はfixture描画loopを停止し、同じ`world.elapsed`から明示的に2回renderしたCanvas RGBAを比較する。`--baseline`指定時はchannel差分数、最大delta、boundsとマゼンタの可視diff PNGをsceneごとに生成する。browser gateは通常の`npm test`とLinux CIへ組み込んだ。
+
+RepositoryにはPR比較に必要な1px正規化baseline／final／diffとmanifestを保持する。容量の大きい@2x PNGはpipeline内で寸法・SHA-256を検証し、CI artifactへ毎回生成するがversion管理しない。
+
+### 改善結果
+
+| 項目 | 結果 |
+| --- | --- |
+| 空 | duskへ中性紙色12% overlay、静的な薄雲3枚、遠景丘1枚を署名再構築レイヤーへ追加 |
+| 床 | growth由来の枕木2〜5、丸太置き場0〜3、空レール0〜3をWorldPatinaへ追加。設備tierは不変 |
+| 札 | `CODEX · Hibana QA`等へ内容側で短縮。Compactはscene別短文を使い、CSS ellipsisを廃止 |
+| 煙 | 主煙をおおむねalpha 0.44〜0.51、補助煙を0.50〜0.54へ抑え、遅延追従へ変更 |
+| 水 | シアンを暖かい低彩度tealへ寄せ、泡／苔の縁を追加 |
+| Compact icon | 64px絵込みPNGを隠し、同じ5操作を18px単純silhouetteで表示 |
+| motion | 固定1/120秒spring、約19% pop、velocity impulse、体積保存、hammer anticipation、hop、道具／煙突／吊り糸の二次運動を実装 |
+| Replay motion | 保存schemaを変えず、連続する`ReplayFrame.event`と`t`からevent age／impulseを再構成 |
+| idle | 全6キャラクターへ0.22Hz呼吸とseeded 2〜5秒blinkを実装。motionScale 0では中立値へ固定 |
+| pacing | CharacterDirectorをact／表情／位置の0.8秒stagingへ変更。Audioも共通cue gateで一拍一音 |
+| audio | 木、真鍮、遠い炉へ音色を整理。Quietは基礎音を含め無音、Calm最小間隔1400ms、fixture無音 |
+
+### Performance and contracts
+
+- Active 7 scene × 3 viewport warm render: 各120 samples、p95最大0.9ms（Gogo）、max最大2.3ms。Mera p95最大0.4ms
+- Meguri Recovery warm render: 各120 samples、p95最大0.3ms、max最大0.8ms
+- 既存macOS Tauri Active p95約3msの受入上限を超えない。最終releaseでは`docs/OS-E2E.md`に従い実機値を再測定する
+- 7 scene × 3 viewport: console error 0、pixel mismatch 0、viewport overflow 0、札clipping 0、12px／32px契約PASS。baselineからの変更は21/21で検出し、diff PNG 21枚を保存
+- reduced-motion／Quietは既存`readPresentationMotionPolicy`経路を通り、spring／呼吸／blink／粒子／明滅を静止・抑制する
+- `npm run tauri -- build --debug --bundles app`でmacOS debug app bundleを再生成し、`src-tauri/target/debug/bundle/macos/Token Fire.app`まで完了
+
+### Release gate
+
+Release workflow、署名／Notarization秘密情報契約、Updater設計、v2→v3・future version・破損保存・Replay復元試験、Privacy、OS別E2E表を追加した。Windowsはimportした証明書のthumbprintを一時Tauri configへ渡し、全EXE／MSIのAuthenticodeを検証する。macOSもcodesign／Gatekeeper／stapler検証をworkflow内で必須化した。ローカルではarm64 release appと42.9MBのUDZO DMGを生成し、DMG CRC、Info.plist、temp copyへのadhoc再署名と`codesign --verify --deep --strict`を通した。Developer ID資格情報を使う署名／Notarization、Windows実機、Installer／Uninstaller、OS process強制終了、Fullscreen／画面共有／Do Not Disturbは外部環境依存のため未実施であり、draft releaseを公開する前の明示ゲートとして残す。
+
+Final local/browser result: passed. Release hardware/credential gate: pending.

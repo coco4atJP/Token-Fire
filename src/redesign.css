@@ -224,7 +224,7 @@ textarea:focus-visible,
   display: block;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -707,8 +707,37 @@ textarea:focus-visible,
 }
 
 .shell[data-layout="compact"] .toolbar button img {
-  width: 19px;
-  height: 19px;
+  display: none;
+}
+
+.shell[data-layout="compact"] .toolbar button::before {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  content: "";
+  -webkit-mask: var(--compact-icon) center / contain no-repeat;
+  mask: var(--compact-icon) center / contain no-repeat;
+}
+
+.shell[data-layout="compact"] #play-button {
+  --compact-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h11v5H4zM9 9h3v12H9zM15 5l5 5-2 2-5-5z'/%3E%3C/svg%3E");
+}
+
+.shell[data-layout="compact"] #ledger-button {
+  --compact-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 4h8v16H3zM13 4h8v16h-8zM5 7h4v2H5zm10 0h4v2h-4z'/%3E%3C/svg%3E");
+}
+
+.shell[data-layout="compact"] #quiet-button {
+  --compact-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 13a4 4 0 011-8 6 6 0 0111 3 3 3 0 010 6H6zm1 3h2l-2 5H5zm6 0h2l-2 5h-2z'/%3E%3C/svg%3E");
+}
+
+.shell[data-layout="compact"] #menu-button {
+  --compact-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h18v4H3zm1 5h7v13H4zm9 0h7v13h-7zM8 11h2v7H8zm6 0h2v7h-2z'/%3E%3C/svg%3E");
+}
+
+.shell[data-layout="compact"] #close-button {
+  --compact-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 5h16v4H4zm2 5h12v10H6zm3 3h6v3H9z'/%3E%3C/svg%3E");
 }
 
 .shell[data-layout="compact"] .toolbar button span {

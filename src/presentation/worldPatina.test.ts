@@ -24,6 +24,9 @@ describe("WorldPatina", () => {
       fadedStamps: 4,
       pipeScars: 3,
       moss: 3,
+      sleepers: 5,
+      logStacks: 3,
+      railSegments: 3,
     });
   });
 
@@ -43,14 +46,14 @@ describe("WorldPatina", () => {
     world.restorationScore = 240;
 
     expect(readWorldPatina(world, "wide")).toEqual({
-      bentFence: 2, incidentTags: 0, fadedStamps: 4, pipeScars: 3, moss: 3,
+      bentFence: 2, incidentTags: 0, fadedStamps: 4, pipeScars: 3, moss: 3, sleepers: 5, logStacks: 3, railSegments: 3,
     });
     expect(readWorldPatina(world, "diorama")).toEqual({
-      bentFence: 1, incidentTags: 0, fadedStamps: 1, pipeScars: 1, moss: 1,
+      bentFence: 1, incidentTags: 0, fadedStamps: 1, pipeScars: 1, moss: 1, sleepers: 3, logStacks: 1, railSegments: 2,
     });
     expect(readWorldPatina(world, "compact")).toEqual({
-      bentFence: 0, incidentTags: 0, fadedStamps: 0, pipeScars: 0, moss: 0,
+      bentFence: 0, incidentTags: 0, fadedStamps: 0, pipeScars: 0, moss: 0, sleepers: 2, logStacks: 0, railSegments: 1,
     });
-    expect(worldPatinaSignature(readWorldPatina(world, "wide"))).toBe("2:0:4:3:3");
+    expect(worldPatinaSignature(readWorldPatina(world, "wide"))).toBe("2:0:4:3:3:5:3:3");
   });
 });

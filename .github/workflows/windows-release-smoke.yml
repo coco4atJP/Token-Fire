@@ -1,0 +1,90 @@
+name: Windows release smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "codex/token-fire-improvement-v1"
+
+permissions:
+  contents: read
+
+jobs:
+  build-install-uninstall:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: windows-release-smoke
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test frontend and deterministic Pixi render
+        run: npm test
+
+      - name: Verify release contract
+        run: npm run release:check
+
+      - name: Build unsigned Windows installers
+        run: npm run tauri -- build --bundles msi,nsis
+
+      - name: Install, launch and uninstall MSI
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem src-tauri/target/release/bundle/msi -Filter *.msi -File | Select-Object -First 1
+          if (-not $msi) { throw "MSI artifact was not generated" }
+
+          $install = Start-Process msiexec.exe -ArgumentList @('/i', "`"$($msi.FullName)`"", '/qn', '/norestart') -Wait -PassThru
+          if ($install.ExitCode -notin @(0, 3010)) { throw "MSI install failed: $($install.ExitCode)" }
+
+          $roots = @(
+            'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          $entry = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq 'Token Fire' } |
+            Select-Object -First 1
+          if (-not $entry) { throw "Installed Token Fire entry was not found" }
+
+          $executable = ($entry.DisplayIcon -replace ',\d+$', '').Trim('"')
+          if (-not (Test-Path $executable)) {
+            $executable = Get-ChildItem $entry.InstallLocation -Filter *.exe -File | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $executable -or -not (Test-Path $executable)) { throw "Installed executable was not found" }
+
+          $app = Start-Process $executable -PassThru
+          Start-Sleep -Seconds 8
+          if ($app.HasExited) { throw "Installed application exited during launch smoke" }
+          Stop-Process -Id $app.Id -Force
+
+          $productCode = $entry.PSChildName
+          if ($productCode -notmatch '^\{[0-9A-Fa-f-]+\}$') { throw "MSI product code was not found" }
+          $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', $productCode, '/qn', '/norestart') -Wait -PassThru
+          if ($uninstall.ExitCode -notin @(0, 3010)) { throw "MSI uninstall failed: $($uninstall.ExitCode)" }
+
+          $remaining = Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -eq 'Token Fire' }
+          if ($remaining) { throw "Token Fire uninstall entry remains after uninstall" }
+
+      - name: Upload unsigned installers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: token-fire-windows-unsigned
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
