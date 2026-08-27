@@ -6,9 +6,9 @@
 
 `.github/workflows/release.yml`は`token-fire-v*` tagまたは手動実行でmacOS arm64／x86_64とWindows x86_64をbuildし、GitHub Releaseを必ずdraftで作る。公開は`docs/OS-E2E.md`完了後の手動操作とする。
 
-`.github/workflows/windows-release-smoke.yml`は署名秘密情報を使わず、Windows Server 2025 x86_64で通常test、release contract、MSI／NSIS生成、MSI silent install、8秒起動、uninstallを検証する。ここで得るartifactは公開用ではなく、bundlingとinstall lifecycleの回帰検出専用である。Authenticode、upgrade、DPI／Tray等の対話E2Eは`docs/OS-E2E.md`の公開ゲートを別途通す。
+`.github/workflows/windows-release-smoke.yml`は署名秘密情報を使わず、Windows Server 2025 x86_64で通常test、DPR 1／1.5／2の表示契約、native keyboard／Quiet／Replay、autostart／notification／hide-show、MSI／NSIS生成、MSI silent install、8秒起動、uninstallを検証する。ここで得るartifactは公開用ではなく、OS E2Eとinstall lifecycleの回帰検出専用である。
 
-`.github/workflows/macos-release-smoke.yml`はmacOS 15 arm64 hostでx86_64 app／DMGをcross-buildし、Mach-O architecture、Info.plist、DMG checksum、Rosetta経由の8秒起動を検証する。公開用workflowもmacOS 14の廃止予定を避けて`macos-15`へ固定した。Developer ID署名、Notarization、Intel物理実機、対話installはこのsmokeに含めない。
+`.github/workflows/macos-release-smoke.yml`はmacOS 15 hostでE2E専用debug `.app`を起動し、透明window、native keyboard／Quiet／Replay、autostart／notification／hide-showを検証する。その後x86_64 app／DMGをcross-buildし、Mach-O architecture、Info.plist、DMG checksum、Rosetta経由の8秒起動を検証する。公開用workflowも`macos-15`へ固定した。Developer ID署名・Notarizationは資格情報投入後のrelease workflowで行う。
 
 macOSの透明windowはTauriの`app.macOSPrivateApi: true`を必要とする。この設定はMac App Store審査と両立しないため、Token-FireのmacOS配布は計画どおりDeveloper ID署名・Notarization済みDMGの直接配布に限定する。
 

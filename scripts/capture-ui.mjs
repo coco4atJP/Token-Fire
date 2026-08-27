@@ -252,12 +252,17 @@ const stopProcess = async (process) => {
   if (process.exitCode !== null || process.signalCode !== null) return;
   await new Promise((resolveExit) => {
     let settled = false;
+    let forceTimer = null;
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (forceTimer) clearTimeout(forceTimer);
       resolveExit();
     };
     process.once("exit", finish);
+    forceTimer = setTimeout(() => {
+      if (process.exitCode === null && process.signalCode === null) process.kill("SIGKILL");
+    }, 2_500);
     process.kill("SIGTERM");
     setTimeout(finish, 3_000);
   });
@@ -520,12 +525,12 @@ const main = async () => {
 };
 
 main()
-  .then(() => {
-    viteProcess?.kill("SIGTERM");
+  .then(async () => {
+    if (viteProcess) await stopProcess(viteProcess);
     process.stdout.write(`Captured ${options.scenes.length * options.viewports.length} scene/viewport pair(s) to ${options.out}\n`);
   })
-  .catch((error) => {
-    viteProcess?.kill("SIGTERM");
+  .catch(async (error) => {
+    if (viteProcess) await stopProcess(viteProcess);
     console.error(error);
     process.exitCode = 1;
   });

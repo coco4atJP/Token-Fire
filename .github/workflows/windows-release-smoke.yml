@@ -41,9 +41,23 @@ jobs:
       - name: Verify DPI 100, 150 and 200 percent presentation contracts
         shell: pwsh
         run: |
-          node scripts/capture-ui.mjs --dpr 1 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-100
-          node scripts/capture-ui.mjs --dpr 1.5 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-150
-          node scripts/capture-ui.mjs --dpr 2 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-200
+          $vite = Start-Process npm.cmd -ArgumentList @('run', 'dev', '--', '--host', '127.0.0.1') -PassThru
+          try {
+            $ready = $false
+            foreach ($attempt in 1..120) {
+              try {
+                $response = Invoke-WebRequest http://127.0.0.1:1420 -UseBasicParsing -TimeoutSec 1
+                if ($response.StatusCode -eq 200) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 250
+            }
+            if (-not $ready) { throw 'Vite did not become ready for the DPI matrix' }
+            node scripts/capture-ui.mjs --no-server --dpr 1 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-100
+            node scripts/capture-ui.mjs --no-server --dpr 1.5 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-150
+            node scripts/capture-ui.mjs --no-server --dpr 2 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-200
+          } finally {
+            if (-not $vite.HasExited) { taskkill.exe /PID $vite.Id /T /F | Out-Null }
+          }
 
       - name: Run native keyboard, Quiet and Replay E2E
         shell: pwsh

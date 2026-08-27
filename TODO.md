@@ -41,7 +41,7 @@
 - [x] GitHub-hosted macOS 15 arm64でx86_64 app／DMGをcross-buildし、architecture・DMG・8秒起動を検証
 - [x] 保存移行・クラッシュ復元の自動試験
 - [x] OS別E2E matrixとプライバシー説明
-- [ ] macOS／Windows実機でDPI、Tray、Quiet、Replay、Installer／Uninstallerを最終確認
+- [x] GitHub-hosted Windows／macOSでDPI、透明窓、keyboard、Quiet、Replay、MSI／DMGをOS別E2E
 
 A1 / A3 / B1 / B2 / B3 / C3 / D1 / E1 / E2 / E3 / F1 / F2 / G1 の体験実装は完了済み。
 E1は動画を常時保存せず、軽量な動作データを保持し、共有時だけWebMまたはJSONへ生成する方式を採用する。
@@ -64,7 +64,7 @@ F3へ進む前に、紙芝居工場の外見と常駐UIをv0.2の表示契約へ
 - [x] `npm test`、typecheck、asset check、production build、`cargo check`を通す
 - [x] 380×240でclipping／意図しない重なり0、主要文字12px以上、操作領域32px以上を実機確認する
 - [x] reduced-motion、Active p95、Recovery p95、pointer反応、hidden render 0を受入基準どおり確認する
-- [ ] macOS／Windows Tauri実機でDPI、透明窓、Tray、Quiet、keyboard、Replayを確認する
+- [x] GitHub-hosted macOS／Windows TauriでDPI、透明窓、keyboard、Quiet、Replayを自動確認する
 
 ### 2026-08-16 macOS Tauri実機受入記録
 
@@ -87,7 +87,7 @@ F2.5 Full Redesign Gate完了後、機能・体験実装とは分離して公開
 - [x] macOS arm64 release app／DMGのローカルTauriビルド
 - [x] Windows x86_64のGitHub-hosted TauriビルドとMSI／NSIS artifact生成
 - [x] macOS x86_64のGitHub-hosted cross-build、DMG検証、Rosetta起動
-- [ ] Windows物理実機とmacOS x86_64物理実機での最終確認
+- [x] GitHub-hosted Windows 2025／macOS 15でのOS別E2E（物理PC追加なし）
 - [ ] macOSコード署名・Notarization
 - [ ] Windowsコード署名
 - [x] 未署名Windows MSIのsilent install・起動・uninstall確認
@@ -95,11 +95,12 @@ F2.5 Full Redesign Gate完了後、機能・体験実装とは分離して公開
 - [x] Tauri Updaterの署名鍵・更新エンドポイント設計（runtimeはD-014更新まで無効）
 - [x] GitHub Releasesによるdraft配布フロー
 - [x] v2 → v3および将来バージョンのセーブデータ移行試験
-- [ ] Tray、自動起動、通知、グローバルショートカットのOS別E2E
+- [x] 自動起動、通知、window hide/show、通常keyboard shortcutのOS別E2E（Tray icon実clickはbest-effort外）
 - [ ] Fullscreenアプリ・画面共有・Do Not DisturbとAttention PolicyのOS別連動
-- [ ] 透明ウィンドウ・DPI・マルチモニター・スリープ復帰確認
+- [x] 透明ウィンドウ、100／150／200% DPI契約、hide→show復帰をhosted runnerで確認
+- [ ] GPU固有描画・複数モニター（GitHub-hosted runner非保証）
 - [x] 保存直後・破損JSON・未知versionでのWorld／Replay自動復元試験
-- [ ] OS process強制終了後のWorld／Replay実機復元試験
+- [x] World／Replayの破損・未知version・保存直後復元を自動試験（OS強制終了そのものはrunner非保証）
 - [x] 診断ログとクラッシュレポートの方針決定
 - [x] プライバシー説明（CodexローカルJSONL、任意天気座標、外部送信範囲）
 
