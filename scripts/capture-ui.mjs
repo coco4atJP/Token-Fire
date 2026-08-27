@@ -25,6 +25,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 
 const argv = process.argv.slice(2);
@@ -203,8 +204,27 @@ const connect = async (port) => {
   throw new Error("could not attach to the Chrome page target");
 };
 
+const reserveDebugPort = () => new Promise((resolvePort, rejectPort) => {
+  const server = createServer();
+  server.unref();
+  server.once("error", rejectPort);
+  server.listen({ host: "127.0.0.1", port: 0 }, () => {
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      server.close();
+      rejectPort(new Error("could not reserve a Chrome debugging port"));
+      return;
+    }
+    server.close((error) => {
+      if (error) rejectPort(error);
+      else resolvePort(address.port);
+    });
+  });
+});
+
 const launchChrome = async (attempt = 1) => {
   const profile = mkdtempSync(join(tmpdir(), "token-fire-capture-"));
+  const debugPort = await reserveDebugPort();
   const chrome = spawn(chromePath, [
     "--headless=new",
     "--disable-background-networking",
@@ -219,20 +239,18 @@ const launchChrome = async (attempt = 1) => {
     "--hide-scrollbars",
     "--no-default-browser-check",
     "--no-first-run",
-    "--remote-debugging-port=0",
+    "--remote-debugging-address=127.0.0.1",
+    `--remote-debugging-port=${debugPort}`,
     "--remote-allow-origins=*",
     `--user-data-dir=${profile}`,
     "about:blank",
   ], { stdio: ["ignore", "ignore", "pipe"] });
   let stderr = "";
   chrome.stderr.on("data", (chunk) => { stderr += String(chunk); });
-  const portFile = join(profile, "DevToolsActivePort");
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    if (existsSync(portFile)) {
-      const port = Number(readFileSync(portFile, "utf8").split("\n")[0]);
-      if (port) return { chrome, cdp: await connect(port), profile };
-    }
-    await sleep(100);
+  try {
+    return { chrome, cdp: await connect(debugPort), profile };
+  } catch (error) {
+    stderr += `\n${error instanceof Error ? error.message : String(error)}`;
   }
   await stopProcess(chrome);
   try {
@@ -241,11 +259,11 @@ const launchChrome = async (attempt = 1) => {
     // A failed Chrome process may release its profile a moment later.
   }
   if (attempt < 3) {
-    process.stderr.write(`Chrome did not expose a DevTools port (attempt ${attempt}/3); retrying.\n${stderr}`);
+    process.stderr.write(`Chrome did not expose a DevTools target (attempt ${attempt}/3); retrying.\n${stderr}`);
     await sleep(400 * attempt);
     return launchChrome(attempt + 1);
   }
-  throw new Error(`Chrome did not expose a DevTools port after ${attempt} attempts (exit ${chrome.exitCode ?? chrome.signalCode ?? "unknown"}).\n${stderr}`);
+  throw new Error(`Chrome did not expose a DevTools target after ${attempt} attempts (exit ${chrome.exitCode ?? chrome.signalCode ?? "unknown"}).\n${stderr}`);
 };
 
 const stopProcess = async (process) => {
