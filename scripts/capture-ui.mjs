@@ -111,7 +111,8 @@ const ensureServer = async () => {
   if (await waitForUrl(options.baseUrl, 2)) return;
   if (options.noServer) throw new Error(`capture URL is unavailable: ${options.baseUrl}`);
   const url = new URL(options.baseUrl);
-  viteProcess = spawn("npm", ["run", "dev", "--", "--host", url.hostname, "--port", url.port || "1420", "--strictPort"], {
+  const viteEntry = resolve("node_modules", "vite", "bin", "vite.js");
+  viteProcess = spawn(process.execPath, [viteEntry, "--host", url.hostname, "--port", url.port || "1420", "--strictPort"], {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],
   });
