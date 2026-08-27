@@ -93,10 +93,19 @@ const withTimeout = async <T>(work: Promise<T>, fallback: T, milliseconds = 4_00
   }
 };
 
+const setAutostartWithRetry = async (platform: PlatformBridge, enabled: boolean): Promise<boolean> => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const observed = await withTimeout(platform.setAutostart(enabled), !enabled);
+    if (observed === enabled) return observed;
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+  }
+  return withTimeout(platform.getAutostart(), !enabled);
+};
+
 const runOptionalPlatformChecks = async (platform: PlatformBridge): Promise<void> => {
   const autostartInitial = await withTimeout(platform.getAutostart(), false);
-  const autostartEnabled = await withTimeout(platform.setAutostart(true), false);
-  const autostartRestored = await withTimeout(platform.setAutostart(autostartInitial), false);
+  const autostartEnabled = await setAutostartWithRetry(platform, true);
+  const autostartRestored = await setAutostartWithRetry(platform, autostartInitial);
   await platform.hideWindow();
   await new Promise((resolve) => window.setTimeout(resolve, 300));
   await platform.showWindow();
