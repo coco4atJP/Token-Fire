@@ -37,10 +37,14 @@ copyFileSync(sourceIcon, temporarySource);
 const tauriEntry = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 try {
-  execFileSync(process.execPath, [tauriEntry, "icon", temporarySource], {
+  execFileSync(process.execPath, [tauriEntry, "icon", temporarySource, "--output", iconsDir], {
     cwd: root,
     stdio: "inherit",
   });
+  const missing = required.filter((name) => !existsSync(join(iconsDir, name)));
+  if (missing.length > 0) {
+    throw new Error(`Tauri icon generation did not produce: ${missing.join(", ")}`);
+  }
 } finally {
   rmSync(temporaryDirectory, { recursive: true, force: true });
 }
