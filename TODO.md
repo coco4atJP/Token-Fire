@@ -38,6 +38,7 @@
 - [x] Windows証明書thumbprintの動的Tauri設定と、macOS／Windows署名検証をrelease workflowへ追加
 - [x] macOS arm64 release app／DMGを生成し、DMG checksumとadhoc再署名可能性を検証
 - [x] GitHub-hosted Windows 2025でx86_64 MSI／NSISを生成し、MSIのsilent install・8秒起動・uninstallを検証
+- [x] GitHub-hosted macOS 15 arm64でx86_64 app／DMGをcross-buildし、architecture・DMG・8秒起動を検証
 - [x] 保存移行・クラッシュ復元の自動試験
 - [x] OS別E2E matrixとプライバシー説明
 - [ ] macOS／Windows実機でDPI、Tray、Quiet、Replay、Installer／Uninstallerを最終確認
@@ -85,7 +86,8 @@ F2.5 Full Redesign Gate完了後、機能・体験実装とは分離して公開
 
 - [x] macOS arm64 release app／DMGのローカルTauriビルド
 - [x] Windows x86_64のGitHub-hosted TauriビルドとMSI／NSIS artifact生成
-- [ ] macOS x86_64のCIビルドと、Windows／macOS x86_64の物理実機確認
+- [x] macOS x86_64のGitHub-hosted cross-build、DMG検証、Rosetta起動
+- [ ] Windows物理実機とmacOS x86_64物理実機での最終確認
 - [ ] macOSコード署名・Notarization
 - [ ] Windowsコード署名
 - [x] 未署名Windows MSIのsilent install・起動・uninstall確認

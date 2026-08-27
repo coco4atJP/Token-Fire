@@ -8,6 +8,8 @@
 
 `.github/workflows/windows-release-smoke.yml`は署名秘密情報を使わず、Windows Server 2025 x86_64で通常test、release contract、MSI／NSIS生成、MSI silent install、8秒起動、uninstallを検証する。ここで得るartifactは公開用ではなく、bundlingとinstall lifecycleの回帰検出専用である。Authenticode、upgrade、DPI／Tray等の対話E2Eは`docs/OS-E2E.md`の公開ゲートを別途通す。
 
+`.github/workflows/macos-release-smoke.yml`はmacOS 15 arm64 hostでx86_64 app／DMGをcross-buildし、Mach-O architecture、Info.plist、DMG checksum、Rosetta経由の8秒起動を検証する。公開用workflowもmacOS 14の廃止予定を避けて`macos-15`へ固定した。Developer ID署名、Notarization、Intel物理実機、対話installはこのsmokeに含めない。
+
 ## GitHub Environment `release` secrets
 
 ### macOS

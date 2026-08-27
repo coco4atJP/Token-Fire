@@ -14,6 +14,18 @@ Release draftごとに実機で実施し、OS build番号・端末・DPI・結�
 
 これは非対話のhosted runner smokeである。Authenticode、upgrade、DPI、透明窓、Tray、通知、Quiet、Replay、複数monitor、sleep復帰、Fullscreen／画面共有／Do Not Disturbは証明しないため、以下の実機項目は未完了のまま維持する。
 
+## 2026-08-27 GitHub-hosted macOS x86_64 smoke
+
+[macOS release smoke run 33051150188](https://github.com/coco4atJP/Token-Fire/actions/runs/33051150188)をcommit `fa06c6c58260628e314a6b8ae0b32c96f98cebdc`、macOS 15.7.7 arm64 hostで実行し、次をPASSした。
+
+- `x86_64-apple-darwin`向けrelease app／DMGのcross-build
+- app executableのMach-O x86_64 architectureとInfo.plist構文
+- `Token Fire_0.1.0_x64.dmg`の`hdiutil verify`（CRC32 `$3CD3DAF9`）
+- Rosetta経由でx86_64 executableが8秒間終了せず稼働するlaunch smoke
+- 未署名artifact `token-fire-macos-x86_64-unsigned`（artifact ID `9637757469`、38,066,827 bytes、SHA-256 `433f3cb5190e7fabf01f1fa967a8565cd63e33b811d059109922164d3e83105c`）のupload
+
+これはarm64 host上のcross-build／Rosetta smokeであり、Developer ID署名、Notarization、stapling、Intel物理実機、DMG UI、Applicationsへの対話install、upgrade、DPI／Tray等のE2Eは証明しない。
+
 ## macOS arm64／x86_64
 
 - [ ] Developer ID署名、Notarization、staplingを検証
