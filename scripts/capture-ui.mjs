@@ -203,7 +203,7 @@ const connect = async (port) => {
   throw new Error("could not attach to the Chrome page target");
 };
 
-const launchChrome = async () => {
+const launchChrome = async (attempt = 1) => {
   const profile = mkdtempSync(join(tmpdir(), "token-fire-capture-"));
   const chrome = spawn(chromePath, [
     "--headless=new",
@@ -234,8 +234,18 @@ const launchChrome = async () => {
     }
     await sleep(100);
   }
-  chrome.kill("SIGTERM");
-  throw new Error(`Chrome did not expose a DevTools port.\n${stderr}`);
+  await stopProcess(chrome);
+  try {
+    rmSync(profile, { recursive: true, force: true, maxRetries: 4, retryDelay: 120 });
+  } catch {
+    // A failed Chrome process may release its profile a moment later.
+  }
+  if (attempt < 3) {
+    process.stderr.write(`Chrome did not expose a DevTools port (attempt ${attempt}/3); retrying.\n${stderr}`);
+    await sleep(400 * attempt);
+    return launchChrome(attempt + 1);
+  }
+  throw new Error(`Chrome did not expose a DevTools port after ${attempt} attempts (exit ${chrome.exitCode ?? chrome.signalCode ?? "unknown"}).\n${stderr}`);
 };
 
 const stopProcess = async (process) => {

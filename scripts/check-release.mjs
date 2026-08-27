@@ -19,6 +19,9 @@ if (packageJson.version !== tauri.version || packageJson.version !== cargoVersio
 if (tauri.plugins?.updater || tauri.bundle?.createUpdaterArtifacts) {
   errors.push("Updater runtime is active before D-014 external-communication review and release-key approval");
 }
+if (tauri.app?.macOSPrivateApi !== true) {
+  errors.push("macOS transparent window requires app.macOSPrivateApi=true for direct DMG distribution");
+}
 for (const requiredBundleIcon of [
   "icons/32x32.png",
   "icons/128x128.png",

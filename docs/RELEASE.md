@@ -10,6 +10,8 @@
 
 `.github/workflows/macos-release-smoke.yml`はmacOS 15 arm64 hostでx86_64 app／DMGをcross-buildし、Mach-O architecture、Info.plist、DMG checksum、Rosetta経由の8秒起動を検証する。公開用workflowもmacOS 14の廃止予定を避けて`macos-15`へ固定した。Developer ID署名、Notarization、Intel物理実機、対話installはこのsmokeに含めない。
 
+macOSの透明windowはTauriの`app.macOSPrivateApi: true`を必要とする。この設定はMac App Store審査と両立しないため、Token-FireのmacOS配布は計画どおりDeveloper ID署名・Notarization済みDMGの直接配布に限定する。
+
 ## GitHub Environment `release` secrets
 
 ### macOS
