@@ -30,10 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-14
+          - platform: macos-15
             args: "--target aarch64-apple-darwin"
             artifact: macos-aarch64
-          - platform: macos-14
+          - platform: macos-15
             args: "--target x86_64-apple-darwin"
             artifact: macos-x86_64
           - platform: windows-2025
@@ -48,7 +48,7 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-14' && (matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
+          targets: ${{ matrix.platform == 'macos-15' && (matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -56,7 +56,7 @@ jobs:
       - run: npm ci
 
       - name: Import macOS signing certificate
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-15'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -74,7 +74,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$keychain_path"
 
       - name: Prepare App Store Connect API key
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-15'
         env:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
         shell: bash
@@ -118,7 +118,7 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Verify macOS signature, notarization and staple
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-15'
         shell: bash
         run: |
           app_path="$(find src-tauri/target -path '*/release/bundle/macos/*.app' -print -quit)"

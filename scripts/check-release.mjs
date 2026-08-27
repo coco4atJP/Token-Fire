@@ -10,6 +10,7 @@ const cargo = readFileSync(resolve(root, "src-tauri/Cargo.toml"), "utf8");
 const cargoVersion = /^version\s*=\s*"([^"]+)"/m.exec(cargo)?.[1];
 const releaseWorkflow = readFileSync(resolve(root, ".github/workflows/release.yml"), "utf8");
 const windowsSmokeWorkflow = readFileSync(resolve(root, ".github/workflows/windows-release-smoke.yml"), "utf8");
+const macosSmokeWorkflow = readFileSync(resolve(root, ".github/workflows/macos-release-smoke.yml"), "utf8");
 const errors = [];
 
 if (packageJson.version !== tauri.version || packageJson.version !== cargoVersion) {
@@ -35,6 +36,7 @@ for (const path of [
   "docs/OS-E2E.md",
   "docs/AUDIO-WORLD-AUDIT.md",
   "src-tauri/tauri.updater.example.json",
+  ".github/workflows/macos-release-smoke.yml",
   ".github/workflows/windows-release-smoke.yml",
 ]) {
   if (!existsSync(resolve(root, path))) errors.push(`${path} is required for a release`);
@@ -50,7 +52,19 @@ for (const requiredWindowsSmokeContract of [
     errors.push(`Windows smoke workflow is missing: ${requiredWindowsSmokeContract}`);
   }
 }
+for (const requiredMacosSmokeContract of [
+  "runs-on: macos-15",
+  "--target x86_64-apple-darwin --bundles app,dmg",
+  "grep -q 'x86_64'",
+  "hdiutil verify",
+  "Installed application exited during launch smoke",
+]) {
+  if (!macosSmokeWorkflow.includes(requiredMacosSmokeContract)) {
+    errors.push(`macOS smoke workflow is missing: ${requiredMacosSmokeContract}`);
+  }
+}
 for (const requiredWorkflowContract of [
+  "platform: macos-15",
   "certificateThumbprint",
   "digestAlgorithm = \"sha256\"",
   "Get-AuthenticodeSignature",
