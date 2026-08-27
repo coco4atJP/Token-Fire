@@ -32,15 +32,12 @@ const temporaryDirectory = mkdtempSync(join(tmpdir(), "token-fire-icons-"));
 const temporarySource = join(temporaryDirectory, "token-fire-icon.png");
 copyFileSync(sourceIcon, temporarySource);
 
-const executable = join(
-  root,
-  "node_modules",
-  ".bin",
-  process.platform === "win32" ? "tauri.cmd" : "tauri",
-);
+// `.cmd` shimはNodeのexecFileSyncからWindows上で直接起動できない。
+// package本体のJS entryを現在のNodeで実行し、shell差を境界内で吸収する。
+const tauriEntry = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 try {
-  execFileSync(executable, ["icon", temporarySource], {
+  execFileSync(process.execPath, [tauriEntry, "icon", temporarySource], {
     cwd: root,
     stdio: "inherit",
   });
