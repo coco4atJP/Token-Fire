@@ -43,6 +43,8 @@ for (const path of [
 }
 for (const requiredWindowsSmokeContract of [
   "runs-on: windows-2025",
+  "--dpr 1.5",
+  "scripts/os-e2e/windows.ps1",
   "build --bundles msi,nsis",
   "MSI install failed",
   "Installed application exited during launch smoke",
@@ -54,6 +56,7 @@ for (const requiredWindowsSmokeContract of [
 }
 for (const requiredMacosSmokeContract of [
   "runs-on: macos-15",
+  "scripts/os-e2e/macos.sh",
   "--target x86_64-apple-darwin --bundles app,dmg",
   "grep -q 'x86_64'",
   "hdiutil verify",

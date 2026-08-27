@@ -113,6 +113,7 @@ const settings = new SettingsStore();
 toolbar.classList.toggle("is-inviting", !settings.get().playIntroSeen);
 const platform = new PlatformBridge();
 let developmentFixture: DevelopmentFixture | null = null;
+let osE2E = false;
 let persistence: WorldPersistence = new BrowserWorldPersistence();
 const eventPacks = new EventPackRegistry();
 const attention = new AttentionDirector(settings, platform, () => developmentFixture === null);
@@ -133,10 +134,11 @@ if (import.meta.env.DEV) {
     source = new fixtureModule.DevelopmentFixtureSource(developmentFixture);
     persistence = new fixtureModule.DevelopmentFixturePersistence(developmentFixture);
     applyDevelopmentFixture = (fixture) => fixtureModule.applyDevelopmentWorldFixture(controller.getWorld(), fixture);
+    osE2E = isDesktop && new URLSearchParams(window.location.search).get("tfOsE2E") === "1";
   }
 }
 const readEffectiveQuiet = (): boolean => developmentFixture
-  ? developmentFixture.quiet || document.visibilityState === "hidden"
+  ? (osE2E ? settings.isQuiet() : developmentFixture.quiet) || document.visibilityState === "hidden"
   : attention.isQuiet();
 let interaction: InteractionController | null = null;
 const setToolbarLabel = (button: HTMLButtonElement, label: string): void => {
@@ -317,7 +319,7 @@ ledgerButton.addEventListener("click", () => {
   controlCenter.toggle();
 });
 quietButton.addEventListener("click", () => {
-  if (developmentFixture) return;
+  if (developmentFixture && !osE2E) return;
   if (settings.isQuiet()) settings.update({ attention: { ...settings.get().attention, quietUntil: 0 } });
   else settings.quietFor(30);
   renderQuietButton();
@@ -390,6 +392,11 @@ window.addEventListener("keydown", (event) => {
     stopDirectInteraction();
   }
 });
+
+if (osE2E) {
+  const { installOsE2EHarness } = await import("./infrastructure/osE2EHarness");
+  installOsE2EHarness(platform);
+}
 
 function toggleMenu(force?: boolean): void {
   const open = force ?? Boolean(menu.hidden);

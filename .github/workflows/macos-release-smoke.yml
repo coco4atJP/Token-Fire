@@ -1,4 +1,4 @@
-name: macOS release smoke
+name: macOS OS E2E and release smoke
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-launch-x86_64:
+  os-e2e-build-launch-x86_64:
     runs-on: macos-15
     env:
       CARGO_INCREMENTAL: 0
@@ -31,8 +31,14 @@ jobs:
           cache-on-failure: true
       - name: Install dependencies
         run: npm ci
+      - name: Test frontend and deterministic Pixi render
+        run: npm test
       - name: Verify release contract
         run: npm run release:check
+      - name: Run native transparency, keyboard, Quiet and Replay E2E
+        run: |
+          mkdir -p artifacts/os-e2e
+          bash scripts/os-e2e/macos.sh
       - name: Build unsigned x86_64 app and DMG
         run: npm run tauri -- build --target x86_64-apple-darwin --bundles app,dmg
       - name: Verify architecture, launch and DMG
@@ -68,4 +74,13 @@ jobs:
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app
             src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
-
+      - name: Upload macOS OS E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: token-fire-macos-os-e2e
+          path: |
+            artifacts/os-e2e/macos-report.jsonl
+            ${{ runner.temp }}/token-fire-macos-os-e2e.stdout.log
+            ${{ runner.temp }}/token-fire-macos-os-e2e.stderr.log
+          if-no-files-found: warn

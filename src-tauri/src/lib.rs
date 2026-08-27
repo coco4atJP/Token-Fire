@@ -1,6 +1,10 @@
 mod codex;
 
 use codex::{AgentSnapshot, CodexWatcher};
+use serde::Serialize;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -17,6 +21,57 @@ fn poll_codex(state: State<'_, MonitorState>) -> Result<AgentSnapshot, String> {
         .lock()
         .map_err(|_| "Codex monitor lock was poisoned".to_string())?;
     watcher.poll()
+}
+
+fn os_e2e_report_path() -> Result<PathBuf, String> {
+    if !cfg!(debug_assertions) || std::env::var("TOKEN_FIRE_OS_E2E").as_deref() != Ok("1") {
+        return Err("OS E2E reporting is disabled".to_string());
+    }
+    std::env::var_os("TOKEN_FIRE_OS_E2E_REPORT")
+        .map(PathBuf::from)
+        .ok_or_else(|| "TOKEN_FIRE_OS_E2E_REPORT is not set".to_string())
+}
+
+#[tauri::command]
+fn write_os_e2e_report(report: String) -> Result<(), String> {
+    if report.len() > 64 * 1024 || report.contains('\n') || report.contains('\r') {
+        return Err("OS E2E report must be a single JSON line under 64 KiB".to_string());
+    }
+    serde_json::from_str::<serde_json::Value>(&report)
+        .map_err(|error| format!("OS E2E report is not JSON: {error}"))?;
+    let path = os_e2e_report_path()?;
+    let mut output = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|error| format!("could not open {}: {error}", path.display()))?;
+    writeln!(output, "{report}")
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OsE2EPlatformSnapshot {
+    platform: &'static str,
+    scale_factor: f64,
+    inner_width: u32,
+    inner_height: u32,
+    visible: bool,
+    focused: bool,
+}
+
+#[tauri::command]
+fn os_e2e_platform_snapshot(window: tauri::WebviewWindow) -> Result<OsE2EPlatformSnapshot, String> {
+    os_e2e_report_path()?;
+    let size = window.inner_size().map_err(|error| error.to_string())?;
+    Ok(OsE2EPlatformSnapshot {
+        platform: std::env::consts::OS,
+        scale_factor: window.scale_factor().map_err(|error| error.to_string())?,
+        inner_width: size.width,
+        inner_height: size.height,
+        visible: window.is_visible().map_err(|error| error.to_string())?,
+        focused: window.is_focused().map_err(|error| error.to_string())?,
+    })
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
@@ -81,7 +136,11 @@ pub fn run() {
             tray.build(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![poll_codex])
+        .invoke_handler(tauri::generate_handler![
+            poll_codex,
+            write_os_e2e_report,
+            os_e2e_platform_snapshot
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Token-Fire");
 }

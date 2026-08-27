@@ -3,14 +3,15 @@
  * Token-Fire visual acceptance capture.
  *
  * - launches an installed Chrome in headless mode through CDP
- * - renders the development fixture at DPR 2
- * - stores the native @2x frame and a 1 image px / 1 CSS px frame
+ * - renders the development fixture at configurable DPR (default 2)
+ * - stores the native frame and a 1 image px / 1 CSS px frame
  * - fails on browser console errors, wrong image dimensions, or unstable pixels
  *
  * Examples:
  *   node scripts/capture-ui.mjs
  *   node scripts/capture-ui.mjs --scenes mera,approval --viewports 560x350
  *   node scripts/capture-ui.mjs --verify-determinism --scenes mera --viewports 560x350
+ *   node scripts/capture-ui.mjs --dpr 1.5 --scenes mera --viewports 380x240
  *   node scripts/capture-ui.mjs --baseline artifacts/ui-audit/improvement-v1-baseline
  */
 import { spawn } from "node:child_process";
@@ -53,6 +54,7 @@ const options = {
   time: argument("time", "dusk"),
   growth: Number(argument("growth", "18")),
   elapsed: Number(argument("elapsed", "120")),
+  dpr: Number(argument("dpr", "2")),
   verifyDeterminism: hasFlag("verify-determinism"),
   measurePerformance: hasFlag("measure-performance"),
   noServer: hasFlag("no-server"),
@@ -65,6 +67,9 @@ for (const scene of options.scenes) {
 }
 if (!Number.isInteger(options.growth) || options.growth < 0 || options.growth > 23) {
   throw new Error(`growth must be an integer from 0 through 23: ${options.growth}`);
+}
+if (!Number.isFinite(options.dpr) || options.dpr < 1 || options.dpr > 4) {
+  throw new Error(`dpr must be between 1 and 4: ${options.dpr}`);
 }
 
 const CHROME_CANDIDATES = [
@@ -352,7 +357,7 @@ const main = async () => {
       await cdp.send("Emulation.setDeviceMetricsOverride", {
         width: viewport.width,
         height: viewport.height,
-        deviceScaleFactor: 2,
+        deviceScaleFactor: options.dpr,
         mobile: false,
         screenWidth: viewport.width,
         screenHeight: viewport.height,
@@ -390,13 +395,13 @@ const main = async () => {
         await cdp.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
 
         const native = await captureFrame(cdp, 1);
-        const normalized = await captureFrame(cdp, 0.5);
-        const expectedNative = { width: viewport.width * 2, height: viewport.height * 2 };
+        const normalized = await captureFrame(cdp, 1 / options.dpr);
+        const expectedNative = { width: Math.round(viewport.width * options.dpr), height: Math.round(viewport.height * options.dpr) };
         const expectedNormalized = { width: viewport.width, height: viewport.height };
         const nativeSize = pngSize(native);
         const normalizedSize = pngSize(normalized);
         if (nativeSize.width !== expectedNative.width || nativeSize.height !== expectedNative.height) {
-          throw new Error(`${scene} ${viewport.label}: @2x PNG is ${nativeSize.width}x${nativeSize.height}`);
+          throw new Error(`${scene} ${viewport.label}: @${options.dpr}x PNG is ${nativeSize.width}x${nativeSize.height}`);
         }
         if (normalizedSize.width !== expectedNormalized.width || normalizedSize.height !== expectedNormalized.height) {
           throw new Error(`${scene} ${viewport.label}: normalized PNG is ${normalizedSize.width}x${normalizedSize.height}`);
@@ -431,7 +436,7 @@ const main = async () => {
         ) throw new Error(`${scene} ${viewport.label}: UI contract failed ${JSON.stringify(uiContract)}`);
 
         const stem = `scene-${scene}-${viewport.label}`;
-        writeFileSync(join(options.out, `${stem}@2x.png`), native);
+        writeFileSync(join(options.out, `${stem}@${options.dpr}x.png`), native);
         writeFileSync(join(options.out, `${stem}.png`), normalized);
         let baselineDiff = null;
         if (options.baseline) {
@@ -466,7 +471,7 @@ const main = async () => {
         manifest.push({
           scene,
           viewport: viewport.label,
-          dpr: 2,
+          dpr: options.dpr,
           normalizedSha256: sha256(normalized),
           nativeSha256: sha256(native),
           consoleErrors: 0,
@@ -481,7 +486,7 @@ const main = async () => {
     writeFileSync(join(options.out, "capture-manifest.json"), `${JSON.stringify({
       capturedAt: new Date().toISOString(),
       chrome: chromePath,
-      contract: "DPR 2 rendered; @2x native plus 1 image px / 1 CSS px normalized",
+      contract: `DPR ${options.dpr} rendered; native plus 1 image px / 1 CSS px normalized`,
       time: options.time,
       growth: options.growth,
       elapsed: options.elapsed,

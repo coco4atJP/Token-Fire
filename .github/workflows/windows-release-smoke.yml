@@ -1,4 +1,4 @@
-name: Windows release smoke
+name: Windows OS E2E and release smoke
 
 on:
   workflow_dispatch:
@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  build-install-uninstall:
+  os-e2e-build-install-uninstall:
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -37,6 +37,17 @@ jobs:
 
       - name: Verify release contract
         run: npm run release:check
+
+      - name: Verify DPI 100, 150 and 200 percent presentation contracts
+        shell: pwsh
+        run: |
+          node scripts/capture-ui.mjs --dpr 1 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-100
+          node scripts/capture-ui.mjs --dpr 1.5 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-150
+          node scripts/capture-ui.mjs --dpr 2 --scenes mera --viewports 380x240 --verify-determinism --out artifacts/os-e2e/windows/dpi-200
+
+      - name: Run native keyboard, Quiet and Replay E2E
+        shell: pwsh
+        run: ./scripts/os-e2e/windows.ps1
 
       - name: Build unsigned Windows installers
         run: npm run tauri -- build --bundles msi,nsis
@@ -88,4 +99,16 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+      - name: Upload Windows OS E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: token-fire-windows-os-e2e
+          path: |
+            artifacts/os-e2e/windows/
+            ${{ runner.temp }}/token-fire-windows-os-e2e.jsonl
+            ${{ runner.temp }}/token-fire-windows-os-e2e.stdout.log
+            ${{ runner.temp }}/token-fire-windows-os-e2e.stderr.log
           if-no-files-found: warn
