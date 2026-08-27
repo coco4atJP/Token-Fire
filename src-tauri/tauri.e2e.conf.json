@@ -1,6 +1,6 @@
 {
   "build": {
-    "devUrl": "http://127.0.0.1:1420/?tfFixture=mera&tfTime=dusk&tfGrowth=18&tfWidth=560&tfHeight=350&tfElapsed=120&tfOsE2E=1"
+    "devUrl": "http://localhost:1420/?tfFixture=mera&tfTime=dusk&tfGrowth=18&tfWidth=560&tfHeight=350&tfElapsed=120&tfOsE2E=1"
   },
   "app": {
     "windows": [
