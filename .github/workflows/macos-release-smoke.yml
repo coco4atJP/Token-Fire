@@ -81,6 +81,7 @@ jobs:
           name: token-fire-macos-os-e2e
           path: |
             artifacts/os-e2e/macos-report.jsonl
+            ${{ runner.temp }}/token-fire-macos-os-e2e.jsonl
             ${{ runner.temp }}/token-fire-macos-os-e2e.stdout.log
             ${{ runner.temp }}/token-fire-macos-os-e2e.stderr.log
           if-no-files-found: warn

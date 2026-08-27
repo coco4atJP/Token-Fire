@@ -122,7 +122,8 @@ const packEvents = new PackEventDirector(eventPacks, settings, attention);
 const replay = new ReplayRecorder();
 let source: AgentSource = new CodexJsonlSource();
 let applyDevelopmentFixture: ((fixture: DevelopmentFixture) => void) | null = null;
-if (import.meta.env.DEV) {
+const fixtureBuildEnabled = import.meta.env.DEV || import.meta.env.VITE_TOKEN_FIRE_OS_E2E === "1";
+if (fixtureBuildEnabled) {
   const fixtureModule = await import("./infrastructure/developmentFixture");
   developmentFixture = fixtureModule.readDevelopmentFixture(window.location.search, true);
   if (developmentFixture) {
