@@ -2,6 +2,18 @@
 
 Release draftごとに実機で実施し、OS build番号・端末・DPI・結果・証跡pathを記録する。未実施をPASSとして扱わない。
 
+## 2026-08-27 GitHub-hosted Windows smoke
+
+[Windows release smoke run 33050061726](https://github.com/coco4atJP/Token-Fire/actions/runs/33050061726)をcommit `f439a318f7014543ab4ad01cc45d160a2651913f`、`windows-2025`（Windows Server 2025 x86_64）で実行し、次をPASSした。
+
+- `npm test`に含まれるheadless browserのPixi pixel決定性、spring収束・NaN不在・seek再現性
+- release contract検証とTauri release executable build
+- `Token Fire_0.1.0_x64_en-US.msi`／`Token Fire_0.1.0_x64-setup.exe`の生成
+- MSI silent install、Uninstall registry／installed executable検出、8秒間の起動継続、silent uninstall、registry entry消去
+- 未署名installer artifact `token-fire-windows-unsigned`（artifact ID `9637312230`、28,182,259 bytes、SHA-256 `5ac01b886af0442ed81076fbf611aa8382f135fe52e5815f135dacf7b2e1d79c`）のupload
+
+これは非対話のhosted runner smokeである。Authenticode、upgrade、DPI、透明窓、Tray、通知、Quiet、Replay、複数monitor、sleep復帰、Fullscreen／画面共有／Do Not Disturbは証明しないため、以下の実機項目は未完了のまま維持する。
+
 ## macOS arm64／x86_64
 
 - [ ] Developer ID署名、Notarization、staplingを検証

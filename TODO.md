@@ -37,6 +37,7 @@
 - [x] macOS／Windows署名、Notarization、Updater、GitHub Releasesの設定と運用文書
 - [x] Windows証明書thumbprintの動的Tauri設定と、macOS／Windows署名検証をrelease workflowへ追加
 - [x] macOS arm64 release app／DMGを生成し、DMG checksumとadhoc再署名可能性を検証
+- [x] GitHub-hosted Windows 2025でx86_64 MSI／NSISを生成し、MSIのsilent install・8秒起動・uninstallを検証
 - [x] 保存移行・クラッシュ復元の自動試験
 - [x] OS別E2E matrixとプライバシー説明
 - [ ] macOS／Windows実機でDPI、Tray、Quiet、Replay、Installer／Uninstallerを最終確認
@@ -83,10 +84,12 @@ F3へ進む前に、紙芝居工場の外見と常駐UIをv0.2の表示契約へ
 F2.5 Full Redesign Gate完了後、機能・体験実装とは分離して公開配布前に以下を行う。
 
 - [x] macOS arm64 release app／DMGのローカルTauriビルド
-- [ ] Windows x86_64／macOS x86_64のCI・実機Tauriビルド
+- [x] Windows x86_64のGitHub-hosted TauriビルドとMSI／NSIS artifact生成
+- [ ] macOS x86_64のCIビルドと、Windows／macOS x86_64の物理実機確認
 - [ ] macOSコード署名・Notarization
 - [ ] Windowsコード署名
-- [ ] インストーラー生成とアンインストール確認
+- [x] 未署名Windows MSIのsilent install・起動・uninstall確認
+- [ ] 署名済みMSI／NSISとmacOS DMGのinstall・upgrade・uninstall実機確認
 - [x] Tauri Updaterの署名鍵・更新エンドポイント設計（runtimeはD-014更新まで無効）
 - [x] GitHub Releasesによるdraft配布フロー
 - [x] v2 → v3および将来バージョンのセーブデータ移行試験

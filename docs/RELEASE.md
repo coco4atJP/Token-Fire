@@ -6,6 +6,8 @@
 
 `.github/workflows/release.yml`は`token-fire-v*` tagまたは手動実行でmacOS arm64／x86_64とWindows x86_64をbuildし、GitHub Releaseを必ずdraftで作る。公開は`docs/OS-E2E.md`完了後の手動操作とする。
 
+`.github/workflows/windows-release-smoke.yml`は署名秘密情報を使わず、Windows Server 2025 x86_64で通常test、release contract、MSI／NSIS生成、MSI silent install、8秒起動、uninstallを検証する。ここで得るartifactは公開用ではなく、bundlingとinstall lifecycleの回帰検出専用である。Authenticode、upgrade、DPI／Tray等の対話E2Eは`docs/OS-E2E.md`の公開ゲートを別途通す。
+
 ## GitHub Environment `release` secrets
 
 ### macOS
