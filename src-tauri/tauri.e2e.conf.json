@@ -1,6 +1,6 @@
 {
   "build": {
-    "devUrl": "http://localhost:1420/?tfFixture=mera&tfTime=dusk&tfGrowth=18&tfWidth=560&tfHeight=350&tfElapsed=120&tfOsE2E=1"
+    "devUrl": "http://localhost:1420"
   },
   "app": {
     "macOSPrivateApi": true,
@@ -8,6 +8,7 @@
       {
         "label": "main",
         "title": "Token Fire OS E2E",
+        "url": "/?tfFixture=mera&tfTime=dusk&tfGrowth=18&tfWidth=560&tfHeight=350&tfElapsed=120&tfOsE2E=1",
         "width": 560,
         "height": 350,
         "minWidth": 380,

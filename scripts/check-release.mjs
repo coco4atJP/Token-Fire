@@ -22,6 +22,9 @@ if (tauri.plugins?.updater || tauri.bundle?.createUpdaterArtifacts) {
 if (tauri.app?.macOSPrivateApi !== true) {
   errors.push("macOS transparent window requires app.macOSPrivateApi=true for direct DMG distribution");
 }
+if (!cargo.includes('"macos-private-api"')) {
+  errors.push("Tauri dependency must enable the macos-private-api feature for transparent windows");
+}
 for (const requiredBundleIcon of [
   "icons/32x32.png",
   "icons/128x128.png",
