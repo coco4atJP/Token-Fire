@@ -69,6 +69,7 @@ const INTERACTION_LINES = CHARACTER_LINES;
 export class CharacterDirector {
   private nextBeatAt = 7;
   private rngState = 0x27d4eb2d;
+  private pendingBeat: { beat: LifeBeat; startedAt: number; stage: 0 | 1 } | null = null;
 
   update(world: WorldState, snapshot: AgentSnapshot, _dt: number): void {
     for (const state of Object.values(world.characters)) {
@@ -81,15 +82,28 @@ export class CharacterDirector {
       }
     }
 
-    if (world.elapsed < this.nextBeatAt || world.activeEvent?.tone === "ceremony") return;
+    // 一拍一変化: act/台詞 → 0.8秒後に表情 → さらに0.8秒後に位置、の順で渡す。
+    // Renderer側が同じ瞬間に状態・表情・位置を独自変更しないための選択規律。
+    if (this.pendingBeat) {
+      const { beat, startedAt, stage } = this.pendingBeat;
+      const state = world.characters[beat.id];
+      if (stage === 0 && world.elapsed >= startedAt + 0.8) {
+        state.mood = beat.mood;
+        this.pendingBeat.stage = 1;
+      } else if (stage === 1 && world.elapsed >= startedAt + 1.6) {
+        state.offsetY = beat.act === "nap" ? 1.5 : -0.8;
+        this.pendingBeat = null;
+      }
+    }
+
+    if (this.pendingBeat || world.elapsed < this.nextBeatAt || world.activeEvent?.tone === "ceremony") return;
     const available = BEATS.filter((beat) => beat.active === undefined || beat.active === snapshot.active);
     const beat = available[Math.floor(this.random() * available.length)];
     const state = world.characters[beat.id];
     state.act = beat.act;
-    state.mood = beat.mood;
     state.line = beat.line;
     state.until = world.elapsed + (snapshot.active ? 4.4 : 6.2);
-    state.offsetY = beat.act === "nap" ? 1.5 : -0.8;
+    this.pendingBeat = { beat, startedAt: world.elapsed, stage: 0 };
     this.nextBeatAt = world.elapsed + (snapshot.active ? 13 : 9) + this.random() * (snapshot.active ? 17 : 12);
   }
 

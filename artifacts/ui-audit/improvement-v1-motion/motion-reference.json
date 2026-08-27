@@ -1,0 +1,51 @@
+{
+  "durationSeconds": 30,
+  "viewport": "560x350",
+  "fixedStep": "1/120s",
+  "motionScale": 1,
+  "contactSheet": "contact-sheet.png",
+  "frames": [
+    {
+      "t": 0,
+      "scene": "poka",
+      "beat": "idle / breath",
+      "file": "t00-poka.png"
+    },
+    {
+      "t": 4,
+      "scene": "mera",
+      "beat": "hammer anticipation",
+      "file": "t04-mera.png"
+    },
+    {
+      "t": 9,
+      "scene": "gogo",
+      "beat": "overdrive / secondary smoke",
+      "file": "t09-gogo.png"
+    },
+    {
+      "t": 14,
+      "scene": "approval",
+      "beat": "important hold",
+      "file": "t14-approval.png"
+    },
+    {
+      "t": 18,
+      "scene": "zero-output",
+      "beat": "error hold",
+      "file": "t18-zero-output.png"
+    },
+    {
+      "t": 23,
+      "scene": "kirari",
+      "beat": "volume-preserving hop",
+      "file": "t23-kirari.png"
+    },
+    {
+      "t": 29,
+      "scene": "meguri",
+      "beat": "soft follow / recovery",
+      "file": "t29-meguri.png"
+    }
+  ]
+}

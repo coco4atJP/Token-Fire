@@ -1,6 +1,8 @@
 # Token-Fire generated production assets
 
-These PNGs are production assets generated from the user-provided Token-Fire exploration sheets kept under `art-source/token-fire/references/`. Character production was completed on 2026-07-21; the stage, prop, and icon refresh was completed on 2026-08-09.
+These PNGs are production assets generated from the user-provided Token-Fire exploration sheets kept under `art-source/token-fire/references/`. Character production was completed on 2026-07-21; the stage and prop refresh was completed on 2026-08-09; the responsive theatre UI and Patina set was completed on 2026-08-11.
+
+UI runtime variants live under `generated/ui/`. Their 512px working masters are retained outside the production bundle under `art-source/token-fire/generated/ui/`.
 
 - `characters/`: Hinoko, Mebuki, Fuwame, Sumi, Mizumo, Kururi
 - `expressions/`: four normalized, bottom-center-aligned frames per character

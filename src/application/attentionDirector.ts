@@ -10,16 +10,25 @@ export class AttentionDirector {
   constructor(
     private readonly settings: SettingsStore,
     private readonly platform: PlatformBridge,
+    private readonly notificationsEnabled: () => boolean = () => true,
   ) {}
 
   onSnapshot(world: WorldState, previous: AgentSnapshot, next: AgentSnapshot): void {
     const approval = next.tool === "approval_review" && previous.tool !== "approval_review";
+    const approvalResolved = previous.tool === "approval_review" && next.tool !== "approval_review";
     const completed = !next.active && previous.active && next.status === "completed";
     const errored = next.status === "error" && previous.status !== "error";
 
     if (approval) {
       enqueueWorldEvent(world, "approval-bell", 1);
       if (this.settings.get().attention.notifyApproval) void this.notify("Token-Fire · 承認待ち", `${next.projectLabel}事業所が経営者の判断を待っています。`);
+    }
+    if (approvalResolved) {
+      if (world.activeEvent?.type === "approval-bell") {
+        world.activeEvent = null;
+        world.eventElapsed = 0;
+      }
+      world.eventQueue = world.eventQueue.filter((event) => event.type !== "approval-bell");
     }
     if (completed && this.settings.get().attention.notifyComplete) {
       void this.notify("Token-Fire · 焼却完了", `${next.projectLabel}事業所が利益式典へ移行しました。`);
@@ -47,7 +56,7 @@ export class AttentionDirector {
   }
 
   private async notify(title: string, body: string): Promise<void> {
-    if (this.isQuiet()) return;
+    if (!this.notificationsEnabled() || this.isQuiet()) return;
     const now = Date.now();
     if (now - this.lastNotificationAt < 45_000) return;
     this.lastNotificationAt = now;

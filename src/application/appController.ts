@@ -3,6 +3,7 @@ import { CharacterDirector } from "../domain/characterDirector";
 import { EventDirector } from "../domain/eventDirector";
 import { enqueueTokenFuel } from "../domain/tokenFuel";
 import { enqueueWorldEvent, updateWorld, type WorldState } from "../domain/world";
+import { readWorldScene } from "../domain/worldScene";
 import type { AgentSource } from "../infrastructure/codexClient";
 import { DemoAgentSource } from "../infrastructure/demoSource";
 import type { ProjectMeta, WorldPersistence } from "../infrastructure/worldPersistence";
@@ -11,6 +12,13 @@ import type { ExperiencePresenter } from "../presentation/experienceOverlay";
 import type { AttentionDirector } from "./attentionDirector";
 import type { EnvironmentDirector } from "./environmentDirector";
 import type { PackEventDirector } from "./packEventDirector";
+import {
+  advancePresentationFrameClock,
+  forEachLogicalStep,
+  isPresentationFrameDue,
+  MAX_LOGICAL_STEP_SECONDS,
+  type PresentationContext,
+} from "./presentationContext";
 import type { ReplayRecorder } from "./replayRecorder";
 import type { WorldRenderer } from "./worldRenderer";
 
@@ -33,11 +41,16 @@ export class AppController {
   private activeSource: AgentSource;
   private sourceMode: SourceMode = "codex";
   private snapshot: AgentSnapshot = IDLE_SNAPSHOT;
-  private lastFrame = performance.now();
-  private lastPoll = 0;
+  private lastSimulationAt = 0;
+  private lastPresentationAt = Number.NEGATIVE_INFINITY;
   private polling = false;
+  private pollPending = false;
   private animationFrame = 0;
+  private pollTimer = 0;
+  private hiddenSimulationTimer = 0;
   private persistenceTimer = 0;
+  private sourceRevision = 0;
+  private started = false;
   private stopped = false;
 
   constructor(
@@ -51,21 +64,37 @@ export class AppController {
     private readonly packEvents: PackEventDirector,
     private readonly replay: ReplayRecorder,
     private readonly view: ControllerView,
+    private readonly readPlayActive: () => boolean = () => false,
+    private readonly beforePresent: () => void = () => {},
+    private readonly readQuietActive: () => boolean = () => this.attention.isQuiet(),
   ) {
     this.activeSource = codexSource;
     this.world = persistence.loadProject(metaFromSnapshot(IDLE_SNAPSHOT));
   }
 
   start(): void {
-    if (this.stopped) return;
+    if (this.stopped || this.started) return;
+    this.started = true;
+    this.lastSimulationAt = performance.now();
     this.view.setSourceMode(this.sourceMode);
-    this.animationFrame = requestAnimationFrame(this.tick);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    this.pollTimer = window.setInterval(this.requestPoll, 700);
+    this.requestPoll();
+    this.syncVisibilityLoop();
   }
 
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.sourceRevision += 1;
+    this.pollPending = false;
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     cancelAnimationFrame(this.animationFrame);
+    window.clearInterval(this.pollTimer);
+    window.clearInterval(this.hiddenSimulationTimer);
+    this.animationFrame = 0;
+    this.pollTimer = 0;
+    this.hiddenSimulationTimer = 0;
     this.replay.stop(this.world);
     this.persistence.save(this.world);
     this.audio.dispose();
@@ -81,8 +110,9 @@ export class AppController {
     } else {
       this.activeSource = this.codexSource;
     }
+    this.sourceRevision += 1;
     this.view.setSourceMode(mode);
-    this.lastPoll = 0;
+    this.requestPoll();
   }
 
   subscribe(subscriber: ControllerSubscriber): () => void {
@@ -103,45 +133,126 @@ export class AppController {
     return this.characterDirector;
   }
 
-  private readonly tick = (now: number): void => {
-    if (this.stopped) return;
-    const dt = Math.min(0.08, Math.max(0, (now - this.lastFrame) / 1000));
-    this.lastFrame = now;
+  /** 開発fixtureのpixel検証用。simulationを進めず、同じWorldStateを明示的に再描画する。 */
+  pausePresentationForCapture(): void {
+    cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = 0;
+  }
 
+  /** `pausePresentationForCapture`後に同じworld.elapsedから一枚だけ再構成する。 */
+  renderPresentationForCapture(): void {
+    if (this.stopped) return;
+    this.beforePresent();
+    this.present(this.readPresentationContext());
+  }
+
+  private readonly tick = (now: number): void => {
+    if (this.stopped || document.visibilityState === "hidden") return;
+    this.advanceSimulationTo(now);
+    this.beforePresent();
+    const context = this.readPresentationContext();
+    if (isPresentationFrameDue(now - this.lastPresentationAt, context)) {
+      this.present(context);
+      this.lastPresentationAt = advancePresentationFrameClock(this.lastPresentationAt, now, context);
+    }
+    this.animationFrame = requestAnimationFrame(this.tick);
+  };
+
+  private advanceSimulationTo(now: number): void {
+    const elapsed = Math.max(0, (now - this.lastSimulationAt) / 1_000);
+    this.lastSimulationAt = now;
+    forEachLogicalStep(elapsed, (dt) => this.advanceLogicalWorld(dt));
+
+    this.persistenceTimer += elapsed;
+    if (this.persistenceTimer >= 5) {
+      this.persistenceTimer %= 5;
+      this.persistence.save(this.world);
+    }
+  }
+
+  private advanceLogicalWorld(dt: number): void {
     this.environment.update(this.world);
     this.characterDirector.update(this.world, this.snapshot, dt);
     this.packEvents.update(this.world, this.snapshot, dt);
-    this.eventDirector.update(this.world, this.snapshot, dt, this.attention.modeMultiplier(), this.attention.isQuiet());
+    this.eventDirector.update(this.world, this.snapshot, dt, this.attention.modeMultiplier(), this.readQuietActive());
     updateWorld(this.world, this.snapshot, dt);
     this.replay.update(this.world, this.snapshot);
+  }
 
-    const presentationSnapshot =
-      this.snapshot.status === "working" && this.world.combustionPulse < 0.04
-        ? { ...this.snapshot, status: "thinking" as const }
-        : this.snapshot;
+  private present(context: PresentationContext): void {
+    const presentationSnapshot = this.presentationSnapshot();
     this.audio.update(this.world, presentationSnapshot);
     this.renderer.render(this.world, presentationSnapshot);
-    this.experience.update(this.world, this.snapshot);
+    this.experience.update(this.world, this.snapshot, context);
     for (const subscriber of this.subscribers) subscriber(this.world, this.snapshot);
+  }
 
-    this.persistenceTimer += dt;
-    if (this.persistenceTimer >= 5) {
-      this.persistenceTimer = 0;
-      this.persistence.save(this.world);
+  private presentationSnapshot(): AgentSnapshot {
+    return this.snapshot.status === "working" && this.world.combustionPulse < 0.04
+      ? { ...this.snapshot, status: "thinking" as const }
+      : this.snapshot;
+  }
+
+  private readPresentationContext(): PresentationContext {
+    return {
+      scene: readWorldScene(this.world, this.snapshot),
+      quiet: this.readQuietActive(),
+      playActive: this.readPlayActive(),
+      visibility: document.visibilityState === "hidden" ? "hidden" : "visible",
+    };
+  }
+
+  private readonly handleVisibilityChange = (): void => {
+    if (this.stopped || !this.started) return;
+    const now = performance.now();
+    this.advanceSimulationTo(now);
+    if (document.visibilityState === "hidden") {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = 0;
+      this.startHiddenSimulation();
+      // renderは止めるが、既に鳴っている音は即座にQuiet状態へ遷移させる。
+      this.audio.update(this.world, this.presentationSnapshot());
+      return;
     }
+    window.clearInterval(this.hiddenSimulationTimer);
+    this.hiddenSimulationTimer = 0;
+    this.lastPresentationAt = Number.NEGATIVE_INFINITY;
+    this.animationFrame = requestAnimationFrame(this.tick);
+  };
 
-    if (now - this.lastPoll > 700 && !this.polling) {
-      this.lastPoll = now;
-      void this.pollSource();
+  private syncVisibilityLoop(): void {
+    if (document.visibilityState === "hidden") {
+      this.startHiddenSimulation();
+      return;
     }
     this.animationFrame = requestAnimationFrame(this.tick);
+  }
+
+  private startHiddenSimulation(): void {
+    if (this.hiddenSimulationTimer !== 0) return;
+    this.hiddenSimulationTimer = window.setInterval(
+      () => this.advanceSimulationTo(performance.now()),
+      MAX_LOGICAL_STEP_SECONDS * 1_000,
+    );
+  }
+
+  private readonly requestPoll = (): void => {
+    if (this.stopped || !this.started) return;
+    if (this.polling) {
+      this.pollPending = true;
+      return;
+    }
+    void this.pollSource();
   };
 
   private async pollSource(): Promise<void> {
     if (this.stopped) return;
     this.polling = true;
+    const revision = this.sourceRevision;
+    const source = this.activeSource;
     try {
-      const next = await this.activeSource.poll();
+      const next = await source.poll();
+      if (this.stopped || revision !== this.sourceRevision) return;
       const nextProjectKey = projectKeyOf(next);
       if (nextProjectKey !== this.world.projectKey) this.switchProject(next);
       enqueueTokenFuel(this.world, next.tokenDelta);
@@ -159,6 +270,7 @@ export class AppController {
             : "WAITING FOR CODEX",
       );
     } catch (error) {
+      if (this.stopped || revision !== this.sourceRevision) return;
       const next: AgentSnapshot = {
         ...IDLE_SNAPSHOT,
         projectKey: this.world.projectKey,
@@ -177,6 +289,10 @@ export class AppController {
       this.view.setConnectionLabel(error instanceof Error ? error.message : "MONITOR ERROR");
     } finally {
       this.polling = false;
+      if (this.pollPending && !this.stopped) {
+        this.pollPending = false;
+        queueMicrotask(this.requestPoll);
+      }
     }
   }
 

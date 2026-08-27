@@ -1,0 +1,26 @@
+{
+  "build": {
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Token Fire OS E2E",
+        "url": "/?tfFixture=mera&tfTime=dusk&tfGrowth=18&tfWidth=560&tfHeight=350&tfElapsed=120&tfOsE2E=1",
+        "width": 560,
+        "height": 350,
+        "minWidth": 380,
+        "minHeight": 240,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "center": true
+      }
+    ]
+  }
+}

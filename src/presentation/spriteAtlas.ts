@@ -31,7 +31,12 @@ export type SpriteKey =
   | "prosceniumFrame"
   | "curtainLeft"
   | "curtainRight"
-  | "curtainValance";
+  | "curtainValance"
+  | "patinaBentFence"
+  | "patinaIncidentTag"
+  | "patinaFadedStamp"
+  | "patinaPipeScar"
+  | "patinaMoss";
 
 export type ExpressionFrame = 1 | 2 | 3 | 4;
 
@@ -43,6 +48,14 @@ interface SpriteFrame {
 }
 
 const CELL = 128;
+
+/**
+ * 先頭`/`はHTTPでは同一originのpathだが、Tauriの`tauri://localhost`では
+ * hostを`assets`へ置き換えた`tauri://assets/...`として解釈される。
+ * Pixiのloaderへ渡す前に、WebViewのbase URLを起点とした相対URLへ揃える。
+ */
+export const resolveSpriteAssetUrl = (path: string, baseUrl = document.baseURI): string =>
+  new URL(path.replace(/^\/+/, ""), baseUrl).href;
 
 const GENERATED_SPRITE_PATHS: Partial<Record<SpriteKey, string>> = {
   hinoko: "/assets/token-fire/generated/characters/hinoko.png",
@@ -70,6 +83,11 @@ const GENERATED_SPRITE_PATHS: Partial<Record<SpriteKey, string>> = {
   curtainLeft: "/assets/token-fire/generated/theatre/curtains/left.png",
   curtainRight: "/assets/token-fire/generated/theatre/curtains/right.png",
   curtainValance: "/assets/token-fire/generated/theatre/curtains/valance.png",
+  patinaBentFence: "/assets/token-fire/generated/ui/patina/bent-fence-128.png",
+  patinaIncidentTag: "/assets/token-fire/generated/ui/patina/incident-tag-128.png",
+  patinaFadedStamp: "/assets/token-fire/generated/ui/patina/faded-ceremony-stamp-128.png",
+  patinaPipeScar: "/assets/token-fire/generated/ui/patina/pipe-scars-128.png",
+  patinaMoss: "/assets/token-fire/generated/ui/patina/moss-scorch-patch-128.png",
 };
 
 const EXPRESSION_SPRITE_PATHS: Record<string, string> = Object.fromEntries(
@@ -120,7 +138,7 @@ export class SpriteAtlas {
 
   static async load(): Promise<SpriteAtlas> {
     const library = new SpriteAtlas();
-    const atlas = await Assets.load<Texture>("/assets/token-fire/sprites.svg");
+    const atlas = await Assets.load<Texture>(resolveSpriteAssetUrl("/assets/token-fire/sprites.svg"));
 
     for (const [key, frame] of Object.entries(SPRITE_FRAMES) as [SpriteKey, SpriteFrame][]) {
       library.textures.set(
@@ -135,14 +153,14 @@ export class SpriteAtlas {
     await Promise.all([
       ...Object.entries(GENERATED_SPRITE_PATHS).map(async ([key, path]) => {
         try {
-          library.textures.set(key as SpriteKey, await Assets.load<Texture>(path));
+          library.textures.set(key as SpriteKey, await Assets.load<Texture>(resolveSpriteAssetUrl(path)));
         } catch {
           // Atlas fallback is already registered.
         }
       }),
       ...Object.entries(EXPRESSION_SPRITE_PATHS).map(async ([key, path]) => {
         try {
-          library.expressions.set(key, await Assets.load<Texture>(path));
+          library.expressions.set(key, await Assets.load<Texture>(resolveSpriteAssetUrl(path)));
         } catch {
           // Character base texture remains available.
         }

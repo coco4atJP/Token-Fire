@@ -1,0 +1,11 @@
+# Token-Fire Privacy
+
+Token-Fireは、Codexがローカルに保存したJSONLを端末内で読み、Token量・作業状態・project情報を紙芝居工場の相対表現へ変換します。Codex JSONLそのものをToken-Fireのサーバーへ送信しません。Token-Fire運営者の収集サーバー、telemetry、広告SDK、自動crash reporterはありません。
+
+端末内にはproject別のWorld、履歴、Discovery、軽量Replay動作データ、設定を保存します。Replay共有をユーザーが明示した時だけ、端末内でWebMまたはJSONへ生成します。収集率・未解除数・streakは前面表示しません。
+
+外部天気は任意設定です。位置情報権限は要求せず、ユーザーが入力した座標だけを天気providerへ送ります。無効時は外部天気通信を行いません。
+
+現在、アプリ内Updaterは無効です。将来有効化する場合、version、OS target、CPU architectureが更新endpointへ送られる可能性があるため、実装前にこの文書とD-014を更新します。
+
+診断情報は自動送信しません。問題調査でworld databaseやlogを共有する場合、内容を確認してからユーザー自身が明示的に渡してください。Codex session名、project名、model名が含まれる場合があります。

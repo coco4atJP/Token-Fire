@@ -1,0 +1,790 @@
+{
+  "capturedAt": "2026-08-26T02:10:38.419Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "contract": "DPR 2 rendered; @2x native plus 1 image px / 1 CSS px normalized",
+  "time": "dusk",
+  "growth": 18,
+  "elapsed": 120,
+  "determinismChecked": true,
+  "baseline": "/Users/nekon/dev/Token-Fire/artifacts/ui-audit/improvement-v1-baseline",
+  "failOnDiff": false,
+  "captures": [
+    {
+      "scene": "poka",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "81349a2515e286cc8982c34e773b66dc8a89cf09dd53613ac470310fe770d986",
+      "nativeSha256": "6aef3f63d30e2c8d6dbd3c137f8ef1fa47ee747f3b76bac5d8668e7f11566e9f",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 100502,
+        "maxDelta": 220,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 195
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.6000000238418579,
+        "maxMs": 1.100000023841858
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.15653991699219,
+        "toolbarMinHeightPx": 32.15654754638672
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "9256b09590204400ad433096ef947930de45316ad88252daa02775dfd4aee505",
+      "nativeSha256": "dd51e6d6d27b4dd8188fb9846aa30557950dd6405730b039c0b71e8fede6748f",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 99568,
+        "maxDelta": 239,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 195
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.40000009536743164,
+        "maxMs": 0.7999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.050048828125,
+        "toolbarMinHeightPx": 32.0500602722168
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "45399c88028b67312946afb5c1b329103148bc8367a4928153c6de6e309f5664",
+      "nativeSha256": "a9ba365369e6429eb5eace93f8b6727b6badaf70dbf667f176a1f6a7655b2f52",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 101201,
+        "maxDelta": 209,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 195
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.9000000953674316,
+        "maxMs": 2.299999952316284
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.03424072265625,
+        "toolbarMinHeightPx": 32.03425979614258
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "5549cad3b655056b003e2d228f74b17e63f1b79a7fbbcbb91256085b2c89dfd4",
+      "nativeSha256": "aa3a96cfe4c3b4d6cf3d8fd7002323f8c6b7ac3c2a388908c8c210b76f6a3721",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 106081,
+        "maxDelta": 210,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 195
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.5,
+        "maxMs": 1.2000000476837158
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.019134521484375,
+        "toolbarMinHeightPx": 32.01913833618164
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "e75d9078657c927cc77aa35234b4c9d3c539c0bbd832f64ed764445f32d79674",
+      "nativeSha256": "6526d353c72268f0c8053a720cbeceee043d8473c22e1fc37be953784f5a058c",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 107775,
+        "maxDelta": 211,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 205
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.5,
+        "maxMs": 1.399999976158142
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.033660888671875,
+        "toolbarMinHeightPx": 32.03367614746094
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "9216cbc1699e722fbeeba447deb9383071f10f3cca8411e39b9dd9dbd685516e",
+      "nativeSha256": "10ec8309422e2d090c53683d5d4088fa0b4c3312cad4c1e08ea412a082e00715",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 110112,
+        "maxDelta": 210,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 198
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 1.100000023841858
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.1033935546875,
+        "toolbarMinHeightPx": 32.10340881347656
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "d476676eddee358fab8f9a788e4cd205fbd8ca11139fd9bbb805b2df97e3c814",
+      "nativeSha256": "fc2bb5c5e67ea42aeb85c4b588fa0f4a6f1eafb21a77414ab3288394b014da93",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 102993,
+        "maxDelta": 209,
+        "bounds": {
+          "minX": 5,
+          "minY": 5,
+          "maxX": 374,
+          "maxY": 195
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 32.051544189453125,
+        "toolbarMinHeightPx": 32.051544189453125
+      }
+    },
+    {
+      "scene": "poka",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "d16951e1868fa6ca4dcf18b79673cffdeb353d6c08e8d9e715e1d9402898aa5d",
+      "nativeSha256": "f59a5153c8b863f0453817b98639bd737d9b0575076ff976b4c14da645ad8abf",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 224156,
+        "maxDelta": 197,
+        "bounds": {
+          "minX": 6,
+          "minY": 6,
+          "maxX": 553,
+          "maxY": 287
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.3999999761581421,
+        "maxMs": 1.100000023841858
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.98187255859375,
+        "toolbarMinHeightPx": 36.023712158203125
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "609a426a2bb716dcf8840b3dc22305d8e52a8700e6252496a789812c3e120b6c",
+      "nativeSha256": "cf9c2b99d1bb6eb5ec12558b218d356d609249cea5688619e9abec1999ced498",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 217379,
+        "maxDelta": 243,
+        "bounds": {
+          "minX": 6,
+          "minY": 8,
+          "maxX": 553,
+          "maxY": 287
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.3999999761581421,
+        "maxMs": 1.2999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.99542236328125,
+        "toolbarMinHeightPx": 36.048126220703125
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "59ddce8ae2f06b5edf987e9cf183426786ebeecd780548c1c4dc5b11d0b7af51",
+      "nativeSha256": "1b34833c74d6f5c360aa128880bf717e71fcef4cfb9d5d30581258dea7b1d4fe",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 217304,
+        "maxDelta": 193,
+        "bounds": {
+          "minX": 6,
+          "minY": 9,
+          "maxX": 553,
+          "maxY": 287
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.7000000476837158,
+        "maxMs": 1.5
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.97354125976562,
+        "toolbarMinHeightPx": 36.008697509765625
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "4a73d36fa8de03962483589077827c7ccd24ae8d67d8fc275d9eba6dc33e3562",
+      "nativeSha256": "714507af6c6a4637e68b3ea49ea678129a033929f58c2a245ca215290f3f7364",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 230901,
+        "maxDelta": 192,
+        "bounds": {
+          "minX": 6,
+          "minY": 8,
+          "maxX": 553,
+          "maxY": 287
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 1
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.9696044921875,
+        "toolbarMinHeightPx": 36.00159454345703
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "c0e697da35bf3fc556daa939af879feeec84c144961edc88daf376fcf5776671",
+      "nativeSha256": "01f956f270eb723306e9c0330da0bd2d7568e32c2f2dfa2babb57d8ab4f6a37f",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 233877,
+        "maxDelta": 233,
+        "bounds": {
+          "minX": 6,
+          "minY": 6,
+          "maxX": 553,
+          "maxY": 301
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 1
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.979736328125,
+        "toolbarMinHeightPx": 36.01976013183594
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "9dcd8a3a36fc99b221ba2219e914ad936a6d8405a020c64ebe6f93b94eeab040",
+      "nativeSha256": "47ef62fdcc1889f64f22b4e510dbdb77b75631d181da0870accfd119647674e7",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 242317,
+        "maxDelta": 171,
+        "bounds": {
+          "minX": 6,
+          "minY": 7,
+          "maxX": 553,
+          "maxY": 294
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.979736328125,
+        "toolbarMinHeightPx": 36.019859313964844
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "2920f1b9f24532da7d8a0755e0da8808fda6d08d3e1a5881cf742ebd74e3e3fb",
+      "nativeSha256": "12cd698b4f9c46ed3cb2c0a752a1008a7f6bd8767b564487848226ff1da000c9",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 224883,
+        "maxDelta": 197,
+        "bounds": {
+          "minX": 6,
+          "minY": 6,
+          "maxX": 553,
+          "maxY": 287
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.6999999284744263
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.96902465820312,
+        "toolbarMinHeightPx": 36.00052261352539
+      }
+    },
+    {
+      "scene": "poka",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "e462d6f35675e8c8d315c951e38bee2bfdb9ce9adfe20aeb46d36f627fd8237f",
+      "nativeSha256": "b1de3f1399bac1e124be30f8f899a34e1c9781b4ba5742b81c30a24770d12056",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 522085,
+        "maxDelta": 238,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 400
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7000000476837158
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.1751708984375,
+        "toolbarMinHeightPx": 36.397056579589844
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "486b5f7a5204e84bf1e503a6ffeb2b98553b85dd6b3fec8a40bb2e6f3713b926",
+      "nativeSha256": "f178c1abc55545fdd65140ee256f12de018a9e04ad4374ab089454d3a7bf0a9e",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 477791,
+        "maxDelta": 244,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 400
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7000000476837158
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.182373046875,
+        "toolbarMinHeightPx": 36.4110221862793
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "effcc8348606dcd361ac84933e0c6d213f5debadfc49527f7a55e501c32ea3f4",
+      "nativeSha256": "28096271905a6370c879ac001f20746934d258170c4140f0f3cd0aaeb623367a",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 477054,
+        "maxDelta": 225,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 400
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.3999999761581421,
+        "maxMs": 0.7999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.18231201171875,
+        "toolbarMinHeightPx": 36.41088104248047
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "bd3cc42a67ebe553983d0a85e4ee62cf926321147fba9fbe6318c3a7ee46aa0d",
+      "nativeSha256": "9c622898ea704fe875f6adcb4b826fa08b5747d749d5da3ac9f12a60db03348c",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 530567,
+        "maxDelta": 196,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 400
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7000000476837158
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.16455078125,
+        "toolbarMinHeightPx": 36.376617431640625
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "65611f10fb2cc8dea95bf7711e70f33c0df911459384cb714e3e1dad6e209113",
+      "nativeSha256": "e3218f9b75a4421c397e25d51941b506e9d59d2c6d40481cfbd8a12be7ac9af9",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 498537,
+        "maxDelta": 238,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 420
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.8999999761581421
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.1832275390625,
+        "toolbarMinHeightPx": 36.41261291503906
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "357f28b8fed74e4faffd74b6a7295e0b007f1f27e84c50ebd488a7a6d052b9b6",
+      "nativeSha256": "5f8097223e04dde5102f75b63a7eb78df71e3d2f90b27e77487d87884ac12880",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 519401,
+        "maxDelta": 212,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 410
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.6999999284744263
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.1751708984375,
+        "toolbarMinHeightPx": 36.3970947265625
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "38cb04bb2909df2c389f9b27a254fb424abf6d7b07e63adffa2fb73f604afa5a",
+      "nativeSha256": "cba80816d2606962ddeaceb5c9e7de54746c0f06e88447abfc9fabf4be521c20",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null,
+        "diffDataUrl": null
+      },
+      "baselineDiff": {
+        "mismatch": 509570,
+        "maxDelta": 197,
+        "bounds": {
+          "minX": 10,
+          "minY": 6,
+          "maxX": 793,
+          "maxY": 400
+        }
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.30000007152557373,
+        "maxMs": 0.7999999523162842
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 69.17620849609375,
+        "toolbarMinHeightPx": 36.399085998535156
+      }
+    }
+  ]
+}
