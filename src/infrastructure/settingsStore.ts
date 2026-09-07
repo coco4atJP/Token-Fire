@@ -63,9 +63,12 @@ export class SettingsStore extends EventTarget {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (!raw) return structuredClone(DEFAULT_SETTINGS);
       const parsed = JSON.parse(raw) as Partial<AppSettings>;
+      // 旧PLAY案内を見た利用者へ新しい初回説明を再表示しない。
+      const openingBriefingSeen = parsed.openingBriefingSeen === true || parsed.playIntroSeen === true;
       return {
         ...structuredClone(DEFAULT_SETTINGS),
         ...parsed,
+        openingBriefingSeen,
         weather: { ...DEFAULT_SETTINGS.weather, ...(parsed.weather ?? {}) },
         attention: { ...DEFAULT_SETTINGS.attention, ...(parsed.attention ?? {}) },
         enabledEventPacks: Array.isArray(parsed.enabledEventPacks) ? parsed.enabledEventPacks : DEFAULT_SETTINGS.enabledEventPacks,

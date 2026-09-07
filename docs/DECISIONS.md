@@ -91,7 +91,9 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - データベース全体をJSONとして手動エクスポートできる
 - v2の単一世界は`Legacy Factory`へ移行する
 - v3の旧キャラクターID、`cinder-feast`、履歴、Discovery、Replay内イベント名はロード時に正史名へ移行し、次回保存で正規化する
-- `token-fire.worlds.v3`と`token-fire.settings.v1`は正史化やPLAY案内既読の追加では変更しない
+- `token-fire.worlds.v3`と`token-fire.settings.v1`は正史化や案内既読の追加では変更しない
+- `openingBriefingSeen`はsettings.v1へ後方互換で補完し、旧`playIntroSeen=true`は新しい初回説明も既読として扱う
+- Replay代表画像と`WorldPatina`は既存world／frameから表示時に導出し、サムネイルやPatinaの保存フィールドを追加しない
 - 本格的なファイル保存、暗号化、バックアップ、復元保証はF3で検証する
 
 ## D-006 — 記録量には静かな上限を設ける
@@ -134,11 +136,14 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 ### 帰結
 
 - UI上は`1/24〜24/24`として確認可能
-- 内部の大分類`factoryTier`は6成長段階ごとの4区分だが、体験の主役にはしない
+- Ledgerでは24段階を保持したまま、4 micro-stageずつ「小さな町工場／増設開始／配管迷宮／煙突群／過剰設備／説明をあきらめる規模」の6 Actを併記する
+- 内部の大分類`factoryTier`は6成長段階ごとの4区分であり、表示用6 Actとは別契約として体験の主役にはしない
 - 工場Milestoneは4成長段階ごとに控えめな文言で出す
 - 成長通知、解除演出、進捗バーを前面へ出さない
 - 舞台では配管、計器、タンク、足場、煙突、通気設備を段階的に足し、炉画像そのものを急に差し替えない
 - `combustionPulse`は炉の発光と燃料流入の瞬間表現へ使い、Token会計には逆流させない
+- 曲がった柵、赤伝票、退色スタンプ、配管傷、苔は収集物ではなく、既存の債務・Discovery・成長・回復値から導出する舞台のPatinaとする
+- 苔は`restorationScore`の0を起点に、1以上で1個、80以上で2個、240以上で3個とする。回復速度や在庫補充の意味を変えた場合に見直す
 
 ## D-009 — 直接操作はPLAY中だけ、ジオラマ内部だけで行う
 
@@ -153,7 +158,7 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - 森側の専用Hotspotをクリック／キーボード操作: 近い木を手動焼却し、`manualDamage`へ記録
 - 初回PLAYだけ操作対象と`DONE / Escape`を舞台口上で案内し、劇場外の操作卓から再表示できる
 
-PixiとDOM Interaction Layerは`StageViewport`の320×192 contain投影を共有する。つけ帳、設定、Soto Noteを開いている間は世界シミュレーションを継続するが、直接操作を終了する。
+PixiとDOM Interaction Layerは`SceneLayout`の320×192 contain投影と3段階の`StageLayoutMode`を共有する。つけ帳、設定、Soto Noteを開いている間は世界シミュレーションを継続するが、直接操作を終了する。
 
 ### 非採用
 
@@ -202,9 +207,12 @@ Countdown速度と次回Timerの両方へMode倍率を反映しているため�
 
 承認待ちなど重要な状態は通常イベントより優先するが、Quietと通知頻度制限を通す。深夜Quietは一時的にWAKEできる。
 
+Quietは`WorldScene`ではなくAttention表現の修飾として扱う。Active中は「幕間表示・操業継続中」、Idle中は「幕間・回復中」と明記し、幕間によってToken会計や世界シミュレーションが止まったように見せない。
+
 ### Presentation Motion Policy
 
 - `prefers-reduced-motion`またはQuietではPixiの揺れを停止し、粒子と明滅を抑える
+- `prefers-reduced-motion`では非必須の空間Animationを0にし、panelとsceneの切替を即時化する
 - Calmでは揺れを縮小し、非重要粒子とイベント密度を抑える
 - Errorは赤い全面点滅ではなく、作業員が無言でTsukechoを見る`ZERO OUTPUT`場面にする
 - Reduce Flashでは式典や燃焼を含む非必須の明滅を固定表示へ変える
@@ -286,13 +294,15 @@ OS別のTray・自動起動・Shortcut動作保証はF3の実機E2Eへ残す。
 
 起動直後には通知権限を要求しない。承認待ち、完了、Errorなど通知対象が実際に発生し、設定で有効な場合にだけ権限を確認・要求する。権限拒否やPlugin失敗は通知だけを無効化し、シミュレーションを継続する。
 
-## D-017 — F3では新しい遊びを増やさない
+## D-017 — F2.5 Full Redesign Gateを通過してからF3へ進む
 
 **状態:** Accepted
 
-現在の機能セット以降、公開配布前のF3ではコード署名、Notarization、Installer、Updater、Release、OS別E2E、保存移行、復元、Privacy説明へ集中する。
+競合調査と実機UI監査から採用したv0.2 Full UI／世界観リデザインをF2.5とし、表示契約、状態表現、Ledger、初回説明、Patina、専用Asset、描画Cadence、固定fixture、アクセシビリティ試験を公開配布前の必須Gateにする。
 
-機能追加と配布品質の不確実性を同時に増やさないため。見直しはWindows／macOSで常用可能なReleaseが作成された後に行う。
+F2.5の受入項目をすべて満たした後、F3ではコード署名、Notarization、Installer、Updater、Release、OS別E2E、保存移行、復元、Privacy説明へ集中し、新しい遊びを増やさない。
+
+外観と操作の既知の負債を残したまま配布工程を固定せず、同時にF3へ到達した後は機能追加と配布品質の不確実性を増やさないため。見直しはF2.5の実機Gateに重大な阻害要因が見つかった場合、またはWindows／macOSで常用可能なReleaseが作成された後に行う。
 
 ## D-018 — リアルタイム表示は有界にし、論理Tokenは欠落させない
 
@@ -306,6 +316,7 @@ Tokenの会計値と、画面へ同時に出す表現量を分離する。Token�
 - Particle: 最大480個
 - 1 updateのToken燃焼Event生成: 最大3回
 - 1 updateの伐採Event生成: 最大2回
+- sleep復帰など1回のlive catch-up: 最大5秒（80ms以下へ分割し、Token Queue自体は保持）
 - Rust側のToken累積: `u64::saturating_add`
 - TypeScript側のToken Queue: `Number.MAX_SAFE_INTEGER`まで保持
 
@@ -341,6 +352,7 @@ PixiJSを表示スタックの標準とする。
 - `AppController`は`WorldRenderer` portだけを知り、PixiJSを直接参照しない
 - PixiJS、DOM Canvas、Textureのロードと破棄は`presentation`で完結する
 - `WorldState`と`WorldEvent`は描画技術を知らない
+- `StageLayoutMode`と`SceneLayout`はpresentationに置き、Pixi、DOM Overlay、PLAY操作面が同じbreakpointと320×192投影を共有する
 - 生成PNGが欠けた場合は`SpriteAtlas`が`sprites.svg`の同義frameへ縮退する
 - 舞台・環境・可動小物の生成画像契約は`public/assets/token-fire/asset-requests.json`へ記録し、未生成でも`Graphics`または`sprites.svg`で動作する
 
@@ -363,8 +375,11 @@ PixiJSを表示スタックの標準とする。
 - 論理舞台: 320×192
 - 可動小物PNG: 256×256、透過、下中央アンカー向け。生成時の512px作業画像から縮小する
 - Window下限: 380×240。自由リサイズは維持し、自動拡大しない
-- Pixi内の状態札を唯一の視覚HUDとし、イベント中は同じ札の内容を差し替える
-- DOMは単一の読み上げ領域と操作面を担当し、視覚HUDを重複させない
+- Layout: `compact <520px`、`diorama 520〜719px`、`wide >=720px`。基準画面は380×240、560×350、800×480
+- 小文字の鮮明さを優先し、DOMの操業札を唯一の視覚HUDとする。接続状態と場面名は同じ札へ統合し、イベント中も同じ札の内容を差し替える
+- Pixiは世界、DOMは操業札、単一の読み上げ領域、操作面を担当し、別のstatus chipやPixi札で視覚HUDを重複させない
+- 文字は本文12〜14px、見出し16〜20px、装飾用途のみ10pxを許可し、操作領域は32px以上とする。日本語は標準角ゴシック、設備番号と企業コピーはmonospaceを使い、外部font通信を追加しない
+- `WorldScene`の分類規則はdomainの`readWorldScene`へ一度だけ定義し、各表現面は独自の優先条件を再実装しない
 - Replay: 960×540、30fps、VP9 → VP8 → WebM、失敗時はJSON
 - Node.js下限: 22.12
 - TypeScript: 7.0.2、Vite: 8.1.5、Rust edition: 2024

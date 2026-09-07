@@ -1,8 +1,8 @@
 {
   "$schema": "./asset-requests.schema.json",
-  "version": 2,
+  "version": 3,
   "status": "generated",
-  "purpose": "PixiJS版の箱舞台へ統合済みのラスタ舞台美術・環境・可動小物。欠損時は同義のPixi GraphicsまたはSVG Atlasへ縮退する。",
+  "purpose": "PixiJS版の箱舞台とDOM舞台枠へ統合済みのラスタ舞台美術・環境・可動小物・UI資産。欠損時は同義のPixi Graphics、SVG Atlas、または読めるDOM labelへ縮退する。",
   "globalDirection": {
     "visualStyle": [
       "hand-painted miniature box theatre",
@@ -172,6 +172,190 @@
       "alpha": true,
       "prompt": "Single tied stack of three freshly cut brown logs preserving the reference prop identity, visible growth rings and bark, hand-painted storybook game prop, front-facing three-quarter view, transparent background, no cart, floor, shadow, character, text, or extra stack.",
       "runtimeFallback": "sprites.svg#logs"
+    },
+    {
+      "path": "ui/operating-placard-128.png",
+      "role": "DOM操業札の空の紙面と木・真鍮枠",
+      "size": { "width": 128, "height": 72 },
+      "alpha": true,
+      "prompt": "Blank hanging operating placard, worn walnut frame, aged brass corners, dirty cream paper, no text, transparent background.",
+      "runtimeFallback": "DOM stage ticker text remains readable"
+    },
+    {
+      "path": "ui/ledger-binding-corner-128.png",
+      "role": "右引き出しLedgerの革綴じ角",
+      "size": { "width": 85, "height": 128 },
+      "alpha": true,
+      "prompt": "L-shaped worn oxblood leather ledger binding with brass studs and hemp stitching, no text, transparent background.",
+      "runtimeFallback": "plain ledger border"
+    },
+    {
+      "path": "ui/blank-receipt-background-128.png",
+      "role": "操業伝票の空背景",
+      "size": { "width": 96, "height": 128 },
+      "alpha": true,
+      "prompt": "Blank dirty cream receipt with a brass clip, subtle ruling and worn corners, no text, transparent background.",
+      "runtimeFallback": "paper CSS surface"
+    },
+    {
+      "path": "ui/icons/play-puppet-control-128.png",
+      "role": "PLAY操作の高密度icon",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Puppet control rod and work glove kamishibai icon, no text, transparent background.",
+      "runtimeFallback": "accessible PLAY label"
+    },
+    {
+      "path": "ui/icons/play-puppet-control-64.png",
+      "role": "PLAY操作のruntime icon",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Puppet control rod and work glove kamishibai icon, no text, transparent background.",
+      "runtimeFallback": "accessible PLAY label"
+    },
+    {
+      "path": "ui/icons/ledger-book-control-128.png",
+      "role": "Ledger操作の高密度icon",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Worn oxblood ledger book with brass clasp and cream pages, no text, transparent background.",
+      "runtimeFallback": "accessible Ledger label"
+    },
+    {
+      "path": "ui/icons/ledger-book-control-64.png",
+      "role": "Ledger操作のruntime icon",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Worn oxblood ledger book with brass clasp and cream pages, no text, transparent background.",
+      "runtimeFallback": "accessible Ledger label"
+    },
+    {
+      "path": "ui/icons/quiet-rain-intermission-128.png",
+      "role": "Quiet操作の高密度icon",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Rain cloud and crescent moon paper-cut intermission icon, no text, transparent background.",
+      "runtimeFallback": "accessible Quiet label"
+    },
+    {
+      "path": "ui/icons/quiet-rain-intermission-64.png",
+      "role": "Quiet操作のruntime icon",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Rain cloud and crescent moon paper-cut intermission icon, no text, transparent background.",
+      "runtimeFallback": "accessible Quiet label"
+    },
+    {
+      "path": "ui/icons/backstage-curtain-toolbox-control-128.png",
+      "role": "Backstage操作の高密度icon",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Tied oxblood curtain and brass toolbox paper-cut icon, no text, transparent background.",
+      "runtimeFallback": "accessible Backstage label"
+    },
+    {
+      "path": "ui/icons/backstage-curtain-toolbox-control-64.png",
+      "role": "Backstage操作のruntime icon",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Tied oxblood curtain and brass toolbox paper-cut icon, no text, transparent background.",
+      "runtimeFallback": "accessible Backstage label"
+    },
+    {
+      "path": "ui/icons/tray-stow-theatre-128.png",
+      "role": "Tray退避操作の高密度icon",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Small wooden theatre entering a dark tray slot with a brass arrow, no text, transparent background.",
+      "runtimeFallback": "accessible Tray label"
+    },
+    {
+      "path": "ui/icons/tray-stow-theatre-64.png",
+      "role": "Tray退避操作のruntime icon",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Small wooden theatre entering a dark tray slot with a brass arrow, no text, transparent background.",
+      "runtimeFallback": "accessible Tray label"
+    },
+    {
+      "path": "ui/patina/bent-fence-128.png",
+      "role": "森林全損履歴の曲がった柵",
+      "size": { "width": 128, "height": 53 },
+      "alpha": true,
+      "prompt": "Short bent and scorched wooden factory fence, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/bent-fence-64.png",
+      "role": "曲がった柵の小型variant",
+      "size": { "width": 64, "height": 27 },
+      "alpha": true,
+      "prompt": "Short bent and scorched wooden factory fence, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/incident-tag-128.png",
+      "role": "成果ゼロ事故履歴の赤伝票",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Blank rust-red incident tag with brass eyelet and hemp string, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/incident-tag-64.png",
+      "role": "赤伝票の小型variant",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Blank rust-red incident tag with brass eyelet and hemp string, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/faded-ceremony-stamp-128.png",
+      "role": "式典履歴の退色スタンプ",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Blank cream paper scrap with faded abstract rust-red ceremonial stamp, no glyphs, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/faded-ceremony-stamp-64.png",
+      "role": "退色スタンプの小型variant",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Blank cream paper scrap with faded abstract rust-red ceremonial stamp, no glyphs, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/pipe-scars-128.png",
+      "role": "設備成長履歴の配管傷",
+      "size": { "width": 128, "height": 51 },
+      "alpha": true,
+      "prompt": "Short soot-dark iron pipe with dents, rust and three broad scratches, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/pipe-scars-64.png",
+      "role": "配管傷の小型variant",
+      "size": { "width": 64, "height": 25 },
+      "alpha": true,
+      "prompt": "Short soot-dark iron pipe with dents, rust and three broad scratches, no text, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/moss-scorch-patch-128.png",
+      "role": "回復履歴の苔",
+      "size": { "width": 128, "height": 128 },
+      "alpha": true,
+      "prompt": "Restrained sage moss patch growing around an old scorch trace, no glow, text, or flowers, transparent background.",
+      "runtimeFallback": "omit derived decoration"
+    },
+    {
+      "path": "ui/patina/moss-scorch-patch-64.png",
+      "role": "苔の小型variant",
+      "size": { "width": 64, "height": 64 },
+      "alpha": true,
+      "prompt": "Restrained sage moss patch growing around an old scorch trace, no glow, text, or flowers, transparent background.",
+      "runtimeFallback": "omit derived decoration"
     }
   ]
 }

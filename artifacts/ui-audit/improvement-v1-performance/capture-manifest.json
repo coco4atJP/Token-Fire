@@ -1,0 +1,63 @@
+{
+  "capturedAt": "2026-08-26T01:51:42.014Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "contract": "DPR 2 rendered; @2x native plus 1 image px / 1 CSS px normalized",
+  "time": "dusk",
+  "growth": 18,
+  "elapsed": 120,
+  "determinismChecked": true,
+  "captures": [
+    {
+      "scene": "mera",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "8d218ce508a7eb34770cf5455f3b06fe850142ac30c90db6809b2b36dc519fb7",
+      "nativeSha256": "4be4bc8e4b589efe3c09fb02f8427586dc9057b62fc48c3da41f97ea676ef7ce",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.5,
+        "maxMs": 0.6000000238418579
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 65.079345703125,
+        "toolbarMinHeightPx": 36.19999694824219
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "af52aa258e21b49e50d6b55b957a273b5d6c5e5ed8f64f4b56af98a38ff2892e",
+      "nativeSha256": "e6b614aa56343afed3b72db3810943619a91756ee031561eadc794f72bc0da91",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      },
+      "performance": {
+        "samples": 120,
+        "p95Ms": 0.7999999523162842,
+        "maxMs": 1
+      },
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.96908569335938,
+        "toolbarMinHeightPx": 36.000587463378906
+      }
+    }
+  ]
+}

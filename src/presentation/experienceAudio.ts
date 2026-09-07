@@ -2,17 +2,32 @@ import type { AgentSnapshot } from "../domain/agent";
 import type { CharacterId } from "../domain/character";
 import type { WorldState } from "../domain/world";
 import { TokenFireAudioDirector, type AudioDirector } from "./audioDirector";
+import { AudioCueGate } from "./audioPacing";
 
 const MIN_GAIN = 0.0001;
+
+export const readExperienceAudioTargets = (
+  world: Pick<WorldState, "chill" | "rain">,
+  snapshot: Pick<AgentSnapshot, "active">,
+  quiet: boolean,
+  enabled: boolean,
+): { chill: number; master: number } => ({
+  chill: !snapshot.active && enabled && !quiet
+    ? (0.014 + world.chill * 0.028) * (1 - world.rain * 0.24)
+    : MIN_GAIN,
+  master: enabled && !quiet ? 0.18 : MIN_GAIN,
+});
 
 export interface ExperienceAudioPolicy {
   allowEventSound(): boolean;
   isQuiet(): boolean;
+  minimumCueSpacingMs(): number;
 }
 
 const DEFAULT_POLICY: ExperienceAudioPolicy = {
   allowEventSound: () => true,
   isQuiet: () => false,
+  minimumCueSpacingMs: () => 900,
 };
 
 export class ExperienceAudioDirector implements AudioDirector {
@@ -29,6 +44,7 @@ export class ExperienceAudioDirector implements AudioDirector {
   constructor(
     private readonly base: TokenFireAudioDirector,
     private readonly policy: ExperienceAudioPolicy = DEFAULT_POLICY,
+    private readonly cueGate = new AudioCueGate(),
   ) {}
 
   get enabled(): boolean {
@@ -56,20 +72,27 @@ export class ExperienceAudioDirector implements AudioDirector {
 
   update(world: WorldState, snapshot: AgentSnapshot): void {
     if (this.disposed) return;
+    const quiet = this.policy.isQuiet();
+    if (this.context && this.master) this.updateCues(world, quiet);
     this.base.update(world, snapshot);
     if (!this.context || !this.master || !this.chillGain || !this.chillFilter) return;
     const now = this.context.currentTime;
-    const quiet = this.policy.isQuiet();
-    const chillTarget = !snapshot.active && this.enabled && !quiet
-      ? (0.014 + world.chill * 0.028) * (1 - world.rain * 0.24)
-      : MIN_GAIN;
-    this.chillGain.gain.setTargetAtTime(chillTarget, now, 0.8);
+    const targets = readExperienceAudioTargets(world, snapshot, quiet, this.enabled);
+    this.chillGain.gain.setTargetAtTime(targets.chill, now, 0.8);
     this.chillFilter.frequency.setTargetAtTime(520 + world.rain * 360 + world.chill * 120, now, 1.8);
-    this.master.gain.setTargetAtTime(this.enabled ? (quiet ? 0.035 : 0.18) : MIN_GAIN, now, 0.2);
+    this.master.gain.setTargetAtTime(targets.master, now, 0.2);
 
+  }
+
+  private updateCues(world: WorldState, quiet: boolean): void {
     const event = world.activeEvent;
     if (event && event.id !== this.lastEventId) {
-      if (this.policy.allowEventSound()) this.playEvent(event.type, event.magnitude);
+      const priority = event.type === "approval-bell" || event.type === "sunk-cost-error" ? "important" : "normal";
+      if (
+        !quiet
+        && this.cueGate.tryAcquire(performance.now(), this.policy.minimumCueSpacingMs(), priority)
+        && this.policy.allowEventSound()
+      ) this.playEvent(event.type, event.magnitude);
       this.lastEventId = event.id;
     }
 
@@ -77,7 +100,13 @@ export class ExperienceAudioDirector implements AudioDirector {
       .filter((state) => state.line && state.until > world.elapsed)
       .sort((left, right) => right.until - left.until)[0];
     const speechKey = speaker?.line ? `${speaker.id}:${speaker.line}` : "";
-    if (speechKey && speechKey !== this.lastCharacterLine && this.policy.allowEventSound() && !quiet) {
+    if (
+      speechKey
+      && speechKey !== this.lastCharacterLine
+      && !quiet
+      && this.cueGate.tryAcquire(performance.now(), this.policy.minimumCueSpacingMs())
+      && this.policy.allowEventSound()
+    ) {
       this.playVoiceBlip(speaker.id, speaker.line?.length ?? 0);
     }
     this.lastCharacterLine = speechKey;
@@ -165,8 +194,8 @@ export class ExperienceAudioDirector implements AudioDirector {
     switch (type) {
       case "token-burn":
       case "tree-harvest":
-        this.tone(78, 0.18, 0.11, "sawtooth", 46);
-        this.tone(244, 0.07, 0.035, "square");
+        this.tone(78, 0.18, 0.11, "triangle", 46);
+        this.tone(244, 0.07, 0.035, "triangle");
         break;
       case "factory-expansion":
       case "factory-milestone":
@@ -177,7 +206,7 @@ export class ExperienceAudioDirector implements AudioDirector {
         [880, 1174.66].forEach((frequency, index) => this.tone(frequency, 0.22, 0.032, "sine", undefined, index * 0.15));
         break;
       case "sunk-cost-error":
-        [132, 110, 88].forEach((frequency, index) => this.tone(frequency, 0.2, 0.085, "square", 62, index * 0.13));
+        [132, 110, 88].forEach((frequency, index) => this.tone(frequency, 0.2, 0.085, "triangle", 62, index * 0.13));
         break;
       case "greenwash-ceremony":
       case "legendary-zoy":
@@ -205,7 +234,7 @@ export class ExperienceAudioDirector implements AudioDirector {
     const syllables = Math.max(2, Math.min(4, Math.round(length / 9)));
     for (let index = 0; index < syllables; index += 1) {
       const step = index % 3 === 1 ? 1.12 : index % 3 === 2 ? 0.94 : 1;
-      this.tone(base * step, 0.055, 0.018, id === "sumi" ? "square" : "triangle", base * step * 1.035, index * 0.065);
+      this.tone(base * step, 0.055, 0.018, "triangle", base * step * 1.035, index * 0.065);
     }
   }
 

@@ -1,0 +1,283 @@
+{
+  "capturedAt": "2026-08-25T23:48:57.280Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "contract": "DPR 2 rendered; @2x native plus 1 image px / 1 CSS px normalized",
+  "time": "dusk",
+  "growth": 18,
+  "determinismChecked": true,
+  "captures": [
+    {
+      "scene": "poka",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "9cbcdc4e2a81660cbc097703887a1681f8f4c168bed2d58191d7c178cf08b853",
+      "nativeSha256": "189a866adc92d4e1b8d3da200c2103a5b6ef304ce2786604ec9a193396b842dc",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "34d7c8e11f1a90010a6b184426c9c32737aab75ff147661376f9bc88d5466891",
+      "nativeSha256": "e95cb8e54c21c1e305c91556f1ad76ca178ff9110b4a07732ae4730d7571683d",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "c4c328b593a7d5503d669b3f60affb75edfe4fe10c6b483a4913e23701b4fee4",
+      "nativeSha256": "bc4f599d3277ef939c3967b6797d59478c91b8ef05552c48745881306792512c",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "6dc1c7e75f6030d490e592fda3352d499929eed8f8624edff7e1e0430adf1364",
+      "nativeSha256": "8b301f27372374c84b87d56dc3885886cfd9aab583ddac577cfe89c79ad043f2",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "6c13fc8dbd306662a864c61fcae6e203eca1fa44aae76d56c9424ab5ff8dc530",
+      "nativeSha256": "d803c7c6e61f446e68e4416e52d96bdba2343cca299e25e6de86cd36e82df70a",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "7b03fd038692947a51aac4e6a24543c9b981aa5b844f6e4a7e1ebdfa7ebc9535",
+      "nativeSha256": "3c1c40f0651b211b87289352c42752bcb52c4e90a2f4f9b3a5c0d7d11ec51fe4",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "380x240",
+      "dpr": 2,
+      "normalizedSha256": "2e2988093523c4c0ec4a950e1eaee09277abbadc73351efc369833e1fb70ced9",
+      "nativeSha256": "9f48109fbbe2c97f7823db1673f85f17216bf4c2d4237d3d40a8678a2902ce2d",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "poka",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "0f1aa13e27eb8a37fdec68b3a60e25bd8f631d2977421e652c0fb02b12614ebf",
+      "nativeSha256": "cc64495a24846c661e231bb04076b85e6c00a28a1097bc9337cbe6101a38f62b",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "0d8a9fbfc6f3b00a99b6218f72b8f3e25180307e567a2b08632048dbcbc61bf1",
+      "nativeSha256": "9546ab11e51702432b224f6792dd1d0a12a88a43685f4ccaf50f566bc45ca4e3",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "14cb78d20abcd728b65e39bf962f3fd9798403af387606a40dbf5eb437a28143",
+      "nativeSha256": "dff6c266d74689adb1cfe09e8ee0a7d7c075f29803ee4ad1e1b5bc15d2831fe3",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "52ac2828302328f2f5f416f315a1935c5b521fa6ddb972e95ed39db943d215e5",
+      "nativeSha256": "3240ff5e73be559852e6c8342bc17d3abe3e778da7bc0475d169f0faf030ba73",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "2e6caa6632a7a3f7a69a2ccb06647f0caac66df595a15a777d28bb12a5002a8d",
+      "nativeSha256": "373f8c6695f18e5a5fedb1dcae52e614de737f576cdfab7e157385f5103ab590",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "e0a7bc2bd85b82f70a4f90cd6322b5ddaffcb1e901002eb7d2565918b42f5e06",
+      "nativeSha256": "04c1bbc1ebe58eaa35407b1311c7e1f636ea7485cbc6c6f51cb25110c3c373b7",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "8039e306ea113dd2f8ea562ca49d7326b24507161aea35b2deb89a6b5d7e0399",
+      "nativeSha256": "eafe767fb59ce0d9cdda252c13bf9dbf43f01a1fdd3ebb90f72704b4233983c2",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "poka",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "51928d2def6f675391a33f53853675df8129699e8f08d1ee14536cbd0a47142f",
+      "nativeSha256": "81331dbba2f291592386c3bc4ff3053f487cc29f336810cd59045fc10f2fc713",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "mera",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "24d9fdc2aca9dac43519fc7db33a2a82f29147c53e7f3b5b7a182ebd1fcc4bc5",
+      "nativeSha256": "547d8073aced010732c606655ca6eb7ed24d5e288e856c04b08eba7810c23245",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "gogo",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "4323fbd93ebc40fe61e92cb25bbb8c6a596fb5843b88373500d4f7c6d608941d",
+      "nativeSha256": "223ce3afa01ecb7f56ea39a0b96eb0cc8656015926883fe07ddefbdc52e80f98",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "approval",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "b26bf899eb573127d732aa16abc1429135626ec5e4e054aa0bb2652d1803cc1e",
+      "nativeSha256": "b12d1689c41c1b210d2ec02667534b404ddf75f0630088ad1981f28eaa33e8ba",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "e31d007058b49231f7c8c4cbc1e4ae4b500c7001b49c9b3de479923041a11f6d",
+      "nativeSha256": "18caab63ea2b8557263f8392bf107a94db4c88fdb07b1e44f1db96696de227f3",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "zero-output",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "1b5f24acd7070bf12123aefb7c54f372adaeffbb8464e55da2e2c7ea4aa6a7b1",
+      "nativeSha256": "07feafc8f966f9f36582b3cbe0193c8d559b8ff68aa7bb3e8c0cb77e790729b8",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "800x480",
+      "dpr": 2,
+      "normalizedSha256": "c6aad68d8e68c39d75fa7eef8a4cfd1374917889de1439e3abe275dedee396cc",
+      "nativeSha256": "c25bbf6e6e9221683c5737e46839a7a75d2cb5b40eb6fded963cbb1874b03a5e",
+      "consoleErrors": 0,
+      "deterministicPixels": {
+        "mismatch": 0,
+        "maxDelta": 0,
+        "bounds": null
+      }
+    }
+  ]
+}

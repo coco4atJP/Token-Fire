@@ -4,7 +4,7 @@ import type { CharacterDirector } from "../domain/characterDirector";
 import { manuallyCharNearestTree, type WorldState } from "../domain/world";
 import { readWorldScene } from "../domain/worldScene";
 import { SCENE_LAYOUT, type ActorPlacement } from "./sceneLayout";
-import { StageViewport } from "./stageViewport";
+import { SceneLayout } from "./stageLayout";
 
 const ACTIVE_CHARACTERS = new Set<CharacterId>(["hinoko", "sumi", "kururi"]);
 const RECOVERY_CHARACTERS = new Set<CharacterId>(["fuwame", "mebuki", "mizumo"]);
@@ -16,6 +16,7 @@ export class InteractionController {
   private readonly forestButton: HTMLButtonElement;
   private enabled = false;
   private activePhase = false;
+  private playable = true;
   private dragStartX = 0;
   private dragStartOffset = 0;
 
@@ -61,10 +62,10 @@ export class InteractionController {
         });
         button.addEventListener("pointermove", (event) => {
           if (!this.enabled || this.getWorld().interaction.dragging !== "fuwame") return;
-          const viewport = StageViewport.measure(this.root);
+          const viewport = SceneLayout.measure(this.root);
           this.characterDirector.setFuwameOffset(
             this.getWorld(),
-            this.dragStartOffset + (event.clientX - this.dragStartX) / viewport.scale,
+            this.dragStartOffset + (event.clientX - this.dragStartX) / viewport.viewport.scale,
           );
         });
         button.addEventListener("pointerup", () => {
@@ -89,7 +90,8 @@ export class InteractionController {
   }
 
   toggle(force?: boolean): boolean {
-    this.enabled = force ?? !this.enabled;
+    const next = force ?? !this.enabled;
+    this.enabled = next && this.playable;
     const world = this.getWorld();
     world.interaction.enabled = this.enabled;
     world.interaction.hovered = null;
@@ -103,11 +105,17 @@ export class InteractionController {
     return this.enabled;
   }
 
+  isActive(): boolean {
+    return this.enabled;
+  }
+
   update(world: WorldState, snapshot: AgentSnapshot): void {
     const scene = readWorldScene(world, snapshot);
+    this.playable = scene === "poka" || scene === "meguri" || scene === "mera" || scene === "gogo";
+    if (!this.playable && this.enabled) this.toggle(false);
     this.activePhase = scene !== "poka" && scene !== "meguri";
     this.root.dataset.phase = this.activePhase ? "active" : "chill";
-    const viewport = StageViewport.measure(this.root);
+    const viewport = SceneLayout.measure(this.root);
     for (const id of CHARACTER_IDS) {
       const button = this.buttons.get(id);
       if (!button) continue;
@@ -149,7 +157,7 @@ export class InteractionController {
   private placeButton(
     button: HTMLButtonElement,
     placement: ActorPlacement,
-    viewport: StageViewport,
+    viewport: SceneLayout,
     centered = false,
   ): void {
     const raw = viewport.projectRect({

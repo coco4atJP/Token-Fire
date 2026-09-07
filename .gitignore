@@ -3,6 +3,8 @@ dist/
 src-tauri/target/
 .DS_Store
 *.log
+artifacts/ui-audit/improvement-v1-diff/
+artifacts/ui-audit/improvement-v1-*/scene-*@2x.png
 .vscode/
 .idea/
 src-tauri/icons/*

@@ -1,12 +1,14 @@
 import type { AgentSnapshot } from "../domain/agent";
+import type { PresentationContext } from "../application/presentationContext";
 import { CHARACTER_IDS, CHARACTER_LABELS, type CharacterId } from "../domain/character";
 import { getWorldMetrics, type WorldState } from "../domain/world";
 import { readWorldScene, WORLD_SCENE_LABELS } from "../domain/worldScene";
 import { SCENE_LAYOUT, type ActorPlacement } from "./sceneLayout";
-import { StageViewport } from "./stageViewport";
+import { SceneLayout } from "./stageLayout";
+import { trapTabKey } from "./focusTrap";
 
 export interface ExperiencePresenter {
-  update(world: WorldState, snapshot: AgentSnapshot): void;
+  update(world: WorldState, snapshot: AgentSnapshot, context?: PresentationContext): void;
   toggleRealityCheck(force?: boolean): void;
 }
 
@@ -20,6 +22,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private readonly ticker: HTMLElement;
   private readonly tickerTitle: HTMLElement;
   private readonly tickerLine: HTMLElement;
+  private readonly tickerSignal: HTMLElement;
+  private readonly stageSummary: HTMLElement;
   private readonly speech: HTMLElement;
   private readonly speechName: HTMLElement;
   private readonly speechLine: HTMLElement;
@@ -30,6 +34,7 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
   private lastAnnouncement = "";
   private lastFocused: HTMLElement | null = null;
   private realityVisible = false;
+  private connectionLabel = "WAITING FOR CODEX";
 
   constructor(
     host: HTMLElement,
@@ -39,9 +44,13 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.root.className = "experience-layer";
     this.root.innerHTML = `
       <div class="sr-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+      <p class="stage-summary"></p>
       <div class="stage-copy" aria-hidden="true">
-        <section class="stage-ticker">
-          <strong></strong><span></span>
+        <section class="stage-ticker" aria-label="操業札">
+          <img src="/assets/token-fire/generated/ui/operating-placard-128.png" alt="" draggable="false">
+          <div class="stage-ticker__copy">
+            <strong></strong><span></span><small></small>
+          </div>
         </section>
         <aside class="character-speech" hidden>
           <b></b><span></span>
@@ -60,9 +69,11 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.modalBackground = Array.from(host.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
     host.append(this.root);
     this.announcer = this.requireElement(".sr-announcer");
+    this.stageSummary = this.requireElement(".stage-summary");
     this.ticker = this.requireElement(".stage-ticker");
     this.tickerTitle = this.requireElement(".stage-ticker strong");
     this.tickerLine = this.requireElement(".stage-ticker span");
+    this.tickerSignal = this.requireElement(".stage-ticker small");
     this.speech = this.requireElement(".character-speech");
     this.speechName = this.requireElement(".character-speech b");
     this.speechLine = this.requireElement(".character-speech span");
@@ -73,10 +84,16 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     this.requireElement<HTMLButtonElement>(".reality-check__close").addEventListener("click", () => this.toggleRealityCheck(false));
     this.realityDialog.addEventListener("keydown", (event) => {
       if (event.key === "Escape") this.toggleRealityCheck(false);
+      else trapTabKey(this.realityDialog, event);
     });
   }
 
-  update(world: WorldState, snapshot: AgentSnapshot): void {
+  setConnectionLabel(label: string): void {
+    this.connectionLabel = formatConnectionLabel(label);
+    this.tickerSignal.textContent = this.connectionLabel;
+  }
+
+  update(world: WorldState, snapshot: AgentSnapshot, context?: PresentationContext): void {
     const event = world.activeEvent;
     const scene = readWorldScene(world, snapshot);
     const metrics = getWorldMetrics(world);
@@ -84,18 +101,26 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       .map((id) => world.characters[id])
       .filter((state) => state.line && state.until > world.elapsed)
       .sort((left, right) => right.until - left.until)[0];
-    const agents = snapshot.activeSessions === 1 ? "AGENT" : "AGENTS";
     this.root.dataset.scene = scene;
-    this.ticker.dataset.tone = event?.tone ?? scene;
+    const quiet = context?.quiet ?? false;
+    const placard = readPlacardCopy(scene, snapshot, quiet, event);
+    const compact = this.root.closest<HTMLElement>(".shell")?.dataset.layout === "compact";
+    this.ticker.dataset.tone = placard.tone;
     this.ticker.dataset.sceneLabel = scene.replace("-", " ").toUpperCase();
-    this.tickerTitle.textContent = event?.title ?? WORLD_SCENE_LABELS[scene];
-    this.tickerLine.textContent = event?.line ?? (snapshot.active
-      ? `${snapshot.effort.toUpperCase()} · ${Math.max(1, snapshot.activeSessions)} ${agents} · +${snapshot.tokenDelta} TOK`
-      : `RAIN ${Math.round(world.rain * 100)}% · WATER ${metrics.waterPercent}% · TREE ${metrics.livingTrees}`);
+    this.tickerTitle.textContent = compact ? compactPlacardTitle(scene) : placard.title;
+    const defaultLine = snapshot.active
+      ? `${snapshot.effort.toUpperCase()} · A${Math.max(1, snapshot.activeSessions)} · +${snapshot.tokenDelta} TOK`
+      : `RAIN${Math.round(world.rain * 100)} · H2O${metrics.waterPercent} · T${metrics.livingTrees}`;
+    this.tickerLine.textContent = compact
+      ? compactPlacardLine(scene, snapshot, quiet, event, defaultLine)
+      : fitPlacardLine(placard.line ?? defaultLine);
+    this.tickerSignal.textContent = this.connectionLabel;
     this.ceremonyStamp.hidden = scene !== "kirari";
-    this.updateSpeech(world, snapshot, scene === "zero-output" ? null : speaker?.id ?? null);
-    const important = snapshot.tool === "approval_review" || snapshot.status === "error" || snapshot.status === "completed";
-    const message = snapshot.tool === "approval_review"
+    this.updateSpeech(world, snapshot, scene === "zero-output" || scene === "approval" ? null : speaker?.id ?? null);
+    const lineStopped = scene === "approval" || scene === "zero-output";
+    this.stageSummary.textContent = `${WORLD_SCENE_LABELS[scene]}。接続 ${this.connectionLabel}。生木${metrics.livingTrees}本。炉は${snapshot.active && !lineStopped ? "稼働" : "停止"}。雨${Math.round(world.rain * 100)}%。${Math.max(0, snapshot.activeSessions)} Agent。`;
+    const important = scene === "approval" || snapshot.status === "error" || snapshot.status === "completed";
+    const message = scene === "approval"
       ? "承認待ちです。工場が経営者の判断を待っています。"
       : snapshot.status === "error"
         ? `エラーです。${event?.line ?? "処理が停止しました。"}`
@@ -110,6 +135,10 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.announcer.setAttribute("aria-live", important ? "assertive" : "polite");
       this.announcer.textContent = message;
       this.lastAnnouncement = message;
+    } else if (!message && this.lastAnnouncement) {
+      // 同じ重要状態が後で再発した時もDOM mutationを起こして読み上げられるよう戻す。
+      this.announcer.textContent = "";
+      this.lastAnnouncement = "";
     }
   }
 
@@ -124,8 +153,8 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
       this.speech.hidden = true;
       return;
     }
-    const viewport = StageViewport.measure(this.root);
-    const anchor = viewport.project({
+    const layout = SceneLayout.measure(this.root);
+    const anchor = layout.project({
       x: Math.max(76, Math.min(244, placement.x)),
       y: Math.max(48, placement.y - placement.height + 3),
     });
@@ -181,6 +210,85 @@ export class TokenFireExperienceOverlay implements ExperiencePresenter {
     return element;
   }
 }
+
+const readPlacardCopy = (
+  scene: ReturnType<typeof readWorldScene>,
+  snapshot: AgentSnapshot,
+  quiet: boolean,
+  event: WorldState["activeEvent"],
+): { tone: string; title: string; line: string | null } => {
+  if (scene === "zero-output") {
+    return { tone: "zero-output", title: "ZERO OUTPUT · ERROR", line: event?.line ?? "機械停止 · 処理に失敗" };
+  }
+  if (scene === "approval") {
+    return { tone: "approval", title: WORLD_SCENE_LABELS[scene], line: "機械停止 · 経営者の判断待ち" };
+  }
+  if (scene === "kirari" || snapshot.status === "completed") {
+    return { tone: "kirari", title: WORLD_SCENE_LABELS.kirari, line: event?.line ?? "操業完了 · 回復工程へ引き渡し" };
+  }
+  if (quiet) {
+    return {
+      tone: "quiet",
+      title: "幕間表示",
+      line: snapshot.active ? "操業継続中 · 音と演出を抑制" : "回復中 · 雨上がりの在庫補充",
+    };
+  }
+  if (event) return { tone: event.tone, title: WORLD_SCENE_LABELS[scene], line: event.line };
+  return { tone: scene, title: WORLD_SCENE_LABELS[scene], line: null };
+};
+
+const fitPlacardLine = (line: string): string => {
+  const normalized = line.replace(/\s+/g, " ").trim();
+  let widthUnits = 0;
+  let fitted = "";
+  for (const character of normalized) {
+    const units = /[\u0000-\u00ff]/.test(character) ? 1 : 2;
+    if (widthUnits + units > 24) break;
+    widthUnits += units;
+    fitted += character;
+  }
+  return fitted.trimEnd();
+};
+
+const compactPlacardTitle = (scene: ReturnType<typeof readWorldScene>): string => ({
+  poka: "POKA · IDLE",
+  mera: "MERA · ACTIVE",
+  gogo: "GOGO · HIGH",
+  approval: "APPROVAL · STOP",
+  kirari: "KIRARI · DONE",
+  "zero-output": "ERROR · ZERO",
+  meguri: "MEGURI · REST",
+})[scene];
+
+const compactPlacardLine = (
+  scene: ReturnType<typeof readWorldScene>,
+  snapshot: AgentSnapshot,
+  quiet: boolean,
+  event: WorldState["activeEvent"],
+  defaultLine: string,
+): string => {
+  if (scene === "zero-output") return "停止 · 成果ゼロ";
+  if (scene === "approval") return "停止 · 判断待ち";
+  if (scene === "kirari" || snapshot.status === "completed") return "完了 · 回復へ";
+  if (quiet) return snapshot.active ? "操業中 · 演出抑制" : "回復中 · 在庫補充";
+  if (event) return fitPlacardLine(event.title).slice(0, 16).trimEnd();
+  if (snapshot.active) return `${snapshot.effort.toUpperCase()} · A${Math.max(1, snapshot.activeSessions)} · +${snapshot.tokenDelta}T`;
+  return defaultLine.replace("RAIN", "R").replace("H2O", "W");
+};
+
+export const formatConnectionLabel = (label: string): string => {
+  const normalized = label.replace(/\s+/g, " ").trim();
+  const [source = "CODEX", detail = ""] = normalized.split("·").map((part) => part.trim());
+  const compactDetail = detail
+    .replace(/\b(Works|Factory|Project|Session)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .slice(0, 2)
+    .join(" ");
+  const compact = compactDetail ? `${source} · ${compactDetail}` : source;
+  return compact.length <= 22 ? compact : compact.slice(0, 22).trimEnd();
+};
 
 const setInert = (element: HTMLElement, inert: boolean): void => {
   element.inert = inert;

@@ -1,5 +1,6 @@
 import { effortMultiplier, type AgentSnapshot } from "../domain/agent";
 import type { WorldState } from "../domain/world";
+import { AudioCueGate } from "./audioPacing";
 
 const AUDIO_ENABLED_KEY = "token-fire.audio.enabled";
 const MASTER_VOLUME = 0.24;
@@ -25,6 +26,16 @@ export type SharedPlaybackGraph = {
   noiseBuffer: AudioBuffer;
 };
 
+export interface BaseAudioPolicy {
+  isQuiet(): boolean;
+  minimumCueSpacingMs(): number;
+}
+
+const DEFAULT_BASE_AUDIO_POLICY: BaseAudioPolicy = {
+  isQuiet: () => false,
+  minimumCueSpacingMs: () => 900,
+};
+
 const readEnabledPreference = (): boolean => {
   try {
     const stored = localStorage.getItem(AUDIO_ENABLED_KEY);
@@ -43,6 +54,33 @@ const saveEnabledPreference = (enabled: boolean): void => {
 };
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+export interface BaseAudioTargets {
+  readonly forge: number;
+  readonly rain: number;
+  readonly master: number;
+  readonly filterHz: number;
+}
+
+/** 実Audio graphへ渡す目標値。Quiet時はambientを含めて無音床へ落とす。 */
+export const readBaseAudioTargets = (
+  world: Pick<WorldState, "heat" | "pollution" | "rain" | "water">,
+  snapshot: Pick<AgentSnapshot, "active" | "effort">,
+  quiet: boolean,
+  enabled = true,
+): BaseAudioTargets => {
+  const intensity = effortMultiplier(snapshot.effort);
+  return {
+    forge: snapshot.active && !quiet
+      ? clamp((0.012 + world.heat * 0.022 + world.pollution * 0.008) * intensity, 0.008, 0.065)
+      : MIN_GAIN,
+    rain: snapshot.active || quiet
+      ? MIN_GAIN
+      : clamp(0.006 + world.rain * 0.034 + world.water * 0.005, 0.008, 0.047),
+    master: enabled && !quiet ? MASTER_VOLUME : MIN_GAIN,
+    filterHz: 145 + intensity * 95 + world.heat * 210,
+  };
+};
 
 export class TokenFireAudioDirector implements AudioDirector {
   private context: AudioContext | null = null;
@@ -63,6 +101,11 @@ export class TokenFireAudioDirector implements AudioDirector {
   private lastImpactIndex: number | null = null;
   private lastImpactAt = 0;
   private lastTokenCueAt = 0;
+
+  constructor(
+    private readonly policy: BaseAudioPolicy = DEFAULT_BASE_AUDIO_POLICY,
+    private readonly cueGate = new AudioCueGate(),
+  ) {}
 
   get enabled(): boolean {
     return this.enabledValue;
@@ -102,23 +145,20 @@ export class TokenFireAudioDirector implements AudioDirector {
   update(world: WorldState, snapshot: AgentSnapshot): void {
     if (this.disposed) return;
 
-    this.updateHammerCue(world, snapshot);
+    const quiet = this.policy.isQuiet();
+    if (!quiet) this.updateHammerCue(world, snapshot);
     const isFreshSnapshot = snapshot.updatedAtMs !== this.lastSnapshotAt;
-    if (isFreshSnapshot) this.updateEventCues(snapshot);
+    if (isFreshSnapshot) this.updateEventCues(snapshot, !quiet);
 
     if (!this.context || !this.masterGain || !this.forgeGain || !this.forgeFilter || !this.rainGain) return;
     const now = this.context.currentTime;
     const intensity = effortMultiplier(snapshot.effort);
-    const activeTarget = snapshot.active
-      ? clamp((0.012 + world.heat * 0.022 + world.pollution * 0.008) * intensity, 0.008, 0.065)
-      : MIN_GAIN;
-    const rainTarget = snapshot.active
-      ? MIN_GAIN
-      : clamp(0.006 + world.rain * 0.034 + world.water * 0.005, 0.008, 0.047);
+    const targets = readBaseAudioTargets(world, snapshot, quiet, this.enabledValue);
 
-    this.forgeGain.gain.setTargetAtTime(activeTarget, now, 0.22);
-    this.rainGain.gain.setTargetAtTime(rainTarget, now, 0.35);
-    this.forgeFilter.frequency.setTargetAtTime(145 + intensity * 95 + world.heat * 210, now, 0.2);
+    this.forgeGain.gain.setTargetAtTime(targets.forge, now, 0.22);
+    this.rainGain.gain.setTargetAtTime(targets.rain, now, 0.35);
+    this.masterGain.gain.setTargetAtTime(targets.master, now, 0.08);
+    this.forgeFilter.frequency.setTargetAtTime(targets.filterHz, now, 0.2);
     for (const [index, oscillator] of this.forgeOscillators.entries()) {
       const base = index === 0 ? 43 : 67;
       oscillator.frequency.setTargetAtTime(base + intensity * (index === 0 ? 4 : 7), now, 0.28);
@@ -182,7 +222,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     lowGain.connect(forgeFilter);
 
     const machineryOscillator = context.createOscillator();
-    machineryOscillator.type = "sawtooth";
+    machineryOscillator.type = "triangle";
     machineryOscillator.frequency.value = 72;
     const machineryGain = context.createGain();
     machineryGain.gain.value = 0.22;
@@ -235,23 +275,27 @@ export class TokenFireAudioDirector implements AudioDirector {
 
   private syncMasterGain(): void {
     if (!this.context || !this.masterGain) return;
-    this.masterGain.gain.setTargetAtTime(this.enabledValue ? MASTER_VOLUME : MIN_GAIN, this.context.currentTime, 0.04);
+    this.masterGain.gain.setTargetAtTime(this.enabledValue && !this.policy.isQuiet() ? MASTER_VOLUME : MIN_GAIN, this.context.currentTime, 0.04);
   }
 
-  private updateEventCues(snapshot: AgentSnapshot): void {
+  private updateEventCues(snapshot: AgentSnapshot, audible: boolean): void {
     const transitionedToError = snapshot.status === "error" && this.lastStatus !== "error";
     const started = snapshot.active && !this.lastActive;
     const stopped = !snapshot.active && this.lastActive;
     const startedCompacting = snapshot.status === "compacting" && this.lastStatus !== "compacting";
     const toolChanged = snapshot.active && snapshot.tool !== this.lastTool && snapshot.tool !== null;
 
-    if (transitionedToError) this.playErrorCue();
-    else if (started) this.playIgnitionCue();
-    else if (stopped) this.playRecoveryCue();
-    else if (startedCompacting) this.playCompactingCue();
+    const now = performance.now();
+    const spacing = this.policy.minimumCueSpacingMs();
+    if (audible && transitionedToError && this.cueGate.tryAcquire(now, spacing, "important")) this.playErrorCue();
+    else if (audible && started && this.cueGate.tryAcquire(now, spacing, "important")) this.playIgnitionCue();
+    else if (audible && stopped && this.cueGate.tryAcquire(now, spacing, "important")) this.playRecoveryCue();
+    else if (audible && startedCompacting && this.cueGate.tryAcquire(now, spacing)) this.playCompactingCue();
 
-    if (toolChanged && snapshot.tool) this.playToolCue(snapshot.tool);
-    if (snapshot.active && snapshot.tokenDelta > 0) this.playTokenCue(snapshot.tokenDelta, snapshot.activeSessions);
+    if (audible && toolChanged && snapshot.tool && this.cueGate.tryAcquire(now, spacing)) this.playToolCue(snapshot.tool);
+    if (audible && snapshot.active && snapshot.tokenDelta > 0 && this.cueGate.tryAcquire(now, spacing)) {
+      this.playTokenCue(snapshot.tokenDelta, snapshot.activeSessions);
+    }
 
     this.lastSnapshotAt = snapshot.updatedAtMs;
     this.lastActive = snapshot.active;
@@ -278,7 +322,7 @@ export class TokenFireAudioDirector implements AudioDirector {
 
     if (impactIndex > this.lastImpactIndex) {
       const now = performance.now();
-      if (now - this.lastImpactAt > 160) {
+      if (now - this.lastImpactAt > 160 && this.cueGate.tryAcquire(now, this.policy.minimumCueSpacingMs())) {
         this.playHammerCue(intensity, snapshot.tool === "apply_patch");
         this.lastImpactAt = now;
       }
@@ -351,7 +395,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     const strength = clamp(0.72 + intensity * 0.22, 0.78, 1.18);
     this.playNoise(0.075, 0.095 * strength, woodenImpact ? 1050 : 720);
     this.playTone(88, 0.13, 0.12 * strength, { type: "triangle", endFrequency: 53 });
-    this.playTone(176, 0.045, 0.035 * strength, { type: woodenImpact ? "square" : "sine" });
+    this.playTone(176, 0.045, 0.035 * strength, { type: "triangle" });
   }
 
   private playTokenCue(tokenDelta: number, sessions: number): void {
@@ -363,7 +407,7 @@ export class TokenFireAudioDirector implements AudioDirector {
     for (let index = 0; index < notes; index += 1) {
       this.playTone(base * Math.pow(1.25, index), 0.12, 0.045, {
         delay: index * 0.055,
-        type: "sine",
+        type: "triangle",
         endFrequency: base * Math.pow(1.25, index) * 1.04,
       });
     }
@@ -371,7 +415,7 @@ export class TokenFireAudioDirector implements AudioDirector {
 
   private playIgnitionCue(): void {
     this.playNoise(0.28, 0.07, 1700);
-    this.playTone(70, 0.3, 0.08, { type: "sawtooth", endFrequency: 118 });
+    this.playTone(70, 0.3, 0.08, { type: "triangle", endFrequency: 118 });
     this.playTone(196, 0.16, 0.035, { delay: 0.16, type: "triangle", endFrequency: 247 });
   }
 
@@ -391,7 +435,7 @@ export class TokenFireAudioDirector implements AudioDirector {
   private playErrorCue(): void {
     this.playNoise(0.34, 0.11, 1300);
     for (let index = 0; index < 3; index += 1) {
-      this.playTone(132 - index * 14, 0.14, 0.09, { delay: index * 0.14, type: "square", endFrequency: 83 });
+      this.playTone(132 - index * 14, 0.14, 0.09, { delay: index * 0.14, type: "triangle", endFrequency: 83 });
     }
   }
 
@@ -402,7 +446,7 @@ export class TokenFireAudioDirector implements AudioDirector {
       return;
     }
     if (tool === "shell") {
-      this.playTone(165, 0.055, 0.025, { type: "square", endFrequency: 205 });
+      this.playTone(165, 0.055, 0.025, { type: "triangle", endFrequency: 205 });
       return;
     }
     if (tool.includes("agent")) {

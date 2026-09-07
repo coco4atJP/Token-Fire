@@ -3,9 +3,75 @@ import type { ReplayFrame, ReplaySession } from "../domain/experienceData";
 import { SCENE_LAYOUT } from "./sceneLayout";
 import { SpriteAtlas } from "./spriteAtlas";
 import { StageViewport, STAGE_HEIGHT, STAGE_WIDTH } from "./stageViewport";
+import { sampleSecondaryFollowAt } from "./motion/spring";
 
 const REPLAY_WIDTH = 960;
 const REPLAY_HEIGHT = 540;
+
+/**
+ * ReplaySessionの保存形式は変えず、帳簿を開いた時だけ代表場面を選ぶ。
+ * 未完了は最後に残った現場、完了済みは相対Energyが最大の場面を採用する。
+ */
+export const selectReplayRepresentativeFrame = (replay: ReplaySession): ReplayFrame | null => {
+  if (replay.frames.length === 0) return null;
+  if (replay.wasted) return replay.frames.at(-1) ?? null;
+  return replay.frames.reduce((selected, frame) => {
+    const selectedScore = [selected.energyLevel, selected.heat, selected.pollution, selected.taskTokens];
+    const frameScore = [frame.energyLevel, frame.heat, frame.pollution, frame.taskTokens];
+    for (let index = 0; index < frameScore.length; index += 1) {
+      if (frameScore[index] > selectedScore[index]) return frame;
+      if (frameScore[index] < selectedScore[index]) return selected;
+    }
+    return selected;
+  });
+};
+
+export const readReplayFrameProgress = (replay: ReplaySession, frame: ReplayFrame): number => {
+  const durationSeconds = Math.max(1, (replay.endedAt - replay.startedAt) / 1_000);
+  return Math.max(0, Math.min(1, frame.t / durationSeconds));
+};
+
+export interface ReplayEventMotion {
+  readonly type: string;
+  readonly ageSeconds: number;
+  readonly impulse: number;
+}
+
+/** ReplayFrame形式を変えず、連続するevent列とframe時刻からevent impulseを再構成する。 */
+export const readReplayEventMotion = (replay: ReplaySession, frame: ReplayFrame): ReplayEventMotion | null => {
+  if (!frame.event) return null;
+  let frameIndex = replay.frames.indexOf(frame);
+  if (frameIndex < 0) {
+    frameIndex = replay.frames.findIndex((candidate) => candidate.t === frame.t && candidate.event === frame.event);
+  }
+  if (frameIndex < 0) return null;
+  let startIndex = frameIndex;
+  while (startIndex > 0 && replay.frames[startIndex - 1].event === frame.event) startIndex -= 1;
+  const ageSeconds = Math.max(0, frame.t - replay.frames[startIndex].t);
+  const withEvent = sampleSecondaryFollowAt(frame.t, ageSeconds).chimney;
+  const ambient = sampleSecondaryFollowAt(frame.t).chimney;
+  return {
+    type: frame.event,
+    ageSeconds,
+    impulse: withEvent - ambient,
+  };
+};
+
+export const renderReplayThumbnail = async (replay: ReplaySession): Promise<string | null> => {
+  const frame = selectReplayRepresentativeFrame(replay);
+  if (!frame) return null;
+  const canvas = document.createElement("canvas");
+  let stage: ReplayStage | null = null;
+  try {
+    stage = await ReplayStage.create(canvas, 320, 180);
+    stage.render(replay, frame, readReplayFrameProgress(replay, frame));
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  } finally {
+    stage?.dispose();
+  }
+};
 
 export const exportReplayData = (replay: ReplaySession): void => {
   downloadBlob(new Blob([JSON.stringify(replay, null, 2)], { type: "application/json" }), `${safeName(replay.title)}.token-fire.json`);
@@ -76,8 +142,10 @@ class ReplayStage {
   private constructor(
     private readonly app: Application,
     private readonly atlas: SpriteAtlas,
+    width: number,
+    height: number,
   ) {
-    const viewport = new StageViewport(REPLAY_WIDTH, REPLAY_HEIGHT);
+    const viewport = new StageViewport(width, height);
     this.root.scale.set(viewport.scale);
     this.root.position.set(viewport.offsetX, viewport.offsetY);
     this.background = sprite(atlas, "backdropRecovery", STAGE_WIDTH / 2, STAGE_HEIGHT, STAGE_WIDTH, STAGE_HEIGHT);
@@ -102,12 +170,12 @@ class ReplayStage {
     this.app.stage.addChild(this.root);
   }
 
-  static async create(canvas: HTMLCanvasElement): Promise<ReplayStage> {
+  static async create(canvas: HTMLCanvasElement, width = REPLAY_WIDTH, height = REPLAY_HEIGHT): Promise<ReplayStage> {
     const app = new Application();
     await app.init({
       canvas,
-      width: REPLAY_WIDTH,
-      height: REPLAY_HEIGHT,
+      width,
+      height,
       antialias: true,
       autoStart: false,
       backgroundAlpha: 1,
@@ -115,7 +183,7 @@ class ReplayStage {
       resolution: 1,
     });
     app.ticker.stop();
-    return new ReplayStage(app, await SpriteAtlas.load());
+    return new ReplayStage(app, await SpriteAtlas.load(), width, height);
   }
 
   render(replay: ReplaySession, frame: ReplayFrame, progress: number): void {
@@ -132,7 +200,7 @@ class ReplayStage {
       this.drawFallbackFrame(g, active);
     }
     this.drawTrees(g, frame);
-    this.drawFactory(g, frame, progress);
+    this.drawFactory(g, frame, readReplayEventMotion(replay, frame)?.impulse ?? 0);
     this.drawLake(g, frame);
     g.roundRect(17, 31, 286, 37, 4).fill({ color: 0x1b1614, alpha: 0.8 });
     g.rect(17, 180, 286, 3).fill({ color: 0xffffff, alpha: 0.16 });
@@ -162,7 +230,7 @@ class ReplayStage {
     }
   }
 
-  private drawFactory(g: Graphics, frame: ReplayFrame, progress: number): void {
+  private drawFactory(g: Graphics, frame: ReplayFrame, eventImpulse: number): void {
     const { x, y, width, height } = SCENE_LAYOUT.forge;
     g.roundRect(x - width / 2, y - height, width, height, 5).fill(0x3c3c40);
     g.roundRect(x - 13, y - 34, 27, 29, 3).fill({ color: 0xff7e26, alpha: 0.35 + frame.heat * 0.65 });
@@ -170,9 +238,16 @@ class ReplayStage {
     for (let index = 0; index < chimneys; index += 1) {
       const chimneyHeight = 22 + (index % 3) * 5 + frame.growthLevel * 0.4;
       const chimneyX = x - 34 + index * 10;
-      g.rect(chimneyX, y - height - chimneyHeight, 7, chimneyHeight).fill(0x55565a);
+      const follow = sampleSecondaryFollowAt(frame.t + index * 0.03).chimney + eventImpulse;
+      const topX = chimneyX + follow * (0.45 + index * 0.08);
+      g.moveTo(chimneyX, y - height)
+        .lineTo(topX, y - height - chimneyHeight)
+        .lineTo(topX + 7, y - height - chimneyHeight)
+        .lineTo(chimneyX + 7, y - height)
+        .closePath()
+        .fill(0x55565a);
       if (frame.active) {
-        g.circle(chimneyX + 3 + Math.sin(progress * 25 + index) * 3, y - height - chimneyHeight - 5, 6 + frame.pollution * 4)
+        g.circle(topX + 3 + Math.sin(frame.t * 2.5 + index) * 3, y - height - chimneyHeight - 5, 6 + frame.pollution * 4)
           .fill({ color: 0x443a3d, alpha: 0.35 + frame.pollution * 0.55 });
       }
     }
