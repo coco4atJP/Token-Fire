@@ -48,3 +48,19 @@ CIはCurrentUser certificate storeへ一時importし、その証明書からthum
 ## 診断方針
 
 自動クラッシュ送信は導入しない。CI logとユーザーが明示exportしたworld databaseだけを診断材料にする。将来crash reporterを導入する場合は、送信内容、保存期間、送信先、opt-inをD-014と`PRIVACY.md`へ先に追加する。
+
+## v0.1.0公開準備
+
+初版は自動更新を有効にせず、GitHub Releasesからの手動ダウンロードとする。runtime、保存形式、外部通信の契約は変更しない。公開本文は`docs/releases/v0.1.0.md`をWorkflowが読み込む。
+
+`node scripts/release-preflight.mjs`はtagとpackage versionの一致、版別リリースノートの存在を確認する。`--signing`は必須Secretの空欄も確認し、欠けた**名前だけ**を出す。資格情報の有効性は後段の署名・公証と署名検証で確認する。
+
+1. `release` Environmentへ上記9件のSecretを登録する。秘密鍵やパスワードをIssue・PR・チャットへ貼らない。
+2. 公開対象commitでCIと両OS smokeを成功させ、run URLとSHAを`docs/OS-E2E.md`へ記録する。
+3. `package.json`、Cargo、Tauriのversion一致を確認し、対象commitへ`token-fire-v0.1.0`を付ける。タグは別commitへ移動しない。
+4. Release desktopを実行する。署名チェック後、macOS arm64／x86_64とWindows x64の全jobが成功したことを確認する。途中失敗したdraftは公開しない。
+5. draftから実際にダウンロードした署名付きDMG／MSI／NSISでinstall・起動・upgrade・uninstallを確認する。初版で旧公開版がない場合、同一版再インストールと開発版からの移行を分けて記録する。旧公開版からのupgradeは「対象なし」としPASSを捏造しない。
+6. 再インストール・更新前後の世界、設定、Replayを比較する。アンインストール後の保持／削除結果を記録し、公開本文に追記する。JSON exportには設定が含まれず、読込UIもないため完全な復元手段と説明しない。
+7. 公開本文と成果物を確認してdraftを公開する。
+
+署名済み成果物の検証は資格情報待ち。未署名smoke、localStorage復元の単体試験をその代替としてPASSにしない。

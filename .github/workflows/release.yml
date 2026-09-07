@@ -20,11 +20,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run release:check
+      - run: node scripts/release-preflight.mjs
       - run: npm test
       - run: npm run build
 
-  publish:
+  signing-preflight:
     needs: verify
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Check signing credentials without printing values
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: node scripts/release-preflight.mjs --signing
+
+  publish:
+    needs: [verify, signing-preflight]
     environment: release
     strategy:
       fail-fast: false
@@ -102,6 +125,19 @@ jobs:
             }
           } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 .tauri-windows-signing.json
 
+      - name: Read release notes
+        id: notes
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { randomUUID } from 'node:crypto';
+          const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+          const notes = readFileSync(`docs/releases/v${version}.md`, 'utf8');
+          const delimiter = randomUUID();
+          appendFileSync(process.env.GITHUB_OUTPUT, `body<<${delimiter}\n${notes}\n${delimiter}\n`);
+          NODE
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,7 +148,7 @@ jobs:
         with:
           tagName: token-fire-v__VERSION__
           releaseName: "Token Fire v__VERSION__"
-          releaseBody: "See RELEASE.md and the attached installers. This release remains a draft until the OS E2E checklist is signed off."
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

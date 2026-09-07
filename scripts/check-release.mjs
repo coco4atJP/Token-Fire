@@ -38,6 +38,8 @@ for (const requiredBundleIcon of [
 }
 for (const path of [
   "PRIVACY.md",
+  "scripts/release-preflight.mjs",
+  `docs/releases/v${packageJson.version}.md`,
   "docs/RELEASE.md",
   "docs/OS-E2E.md",
   "docs/AUDIO-WORLD-AUDIT.md",
