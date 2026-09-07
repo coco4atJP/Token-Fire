@@ -9,11 +9,11 @@ macOSは`APPLE_SIGNING_IDENTITY=-`によるad-hoc署名を使い、Developer ID�
 ## 公開手順
 
 1. 公開対象commitで通常CIを成功させ、package／Cargo／Tauriのversionを一致させる。`npm run release:check`と`node scripts/release-preflight.mjs`を通す。
-2. 対象commitへ`token-fire-v0.1.0`を付ける。既存tagを別commitへ移動しない。Workflowの手動実行も可能だが、同じ版の別commitによる成果物の混在を避ける。
+2. 対象commitへ`token-fire-v0.1.1`を付ける。既存tagを別commitへ移動しない。Workflowの手動実行も可能だが、同じ版の別commitによる成果物の混在を避ける。
 3. Release desktopはmacOS arm64／x86_64、Windows x64をbuildして**draft／pre-release**を作る。同時に両OSの既存E2Eをreusable workflowとして実行する。
 4. 配布する同一DMGからappをコピーしてad-hoc整合性・architecture・8秒起動・同一版置換・app削除を検証する。MSI／NSISでinstall・8秒起動・uninstall、NSISで同一版再installを検証する。Windows署名状態は`NotSigned`であることを確認する。
 5. 全job成功後、`checksums`がdraftから4成果物をdownloadし、版番号とファイル構成を検査して`SHA256SUMS`を添付する。buildや受入が失敗したdraftは公開しない。
-6. run URL・commit・結果を`docs/OS-E2E.md`またはRelease本文へ記録する。版別本文`docs/releases/v0.1.0.md`には未署名の初回起動手順と既知の制限を含める。
+6. run URL・commit・結果を`docs/OS-E2E.md`またはRelease本文へ記録する。版別本文`docs/releases/v0.1.1.md`には未署名の初回起動手順と既知の制限を含める。
 7. draftを公開pre-releaseへ変更する。署名・公証が成功したとは表記しない。
 
 ## 検証の境界

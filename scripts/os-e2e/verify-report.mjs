@@ -39,7 +39,14 @@ if (startup) {
   if (!(startup.native?.innerWidth > 0 && startup.native?.innerHeight > 0)) errors.push("native inner size was not observed");
 }
 
-requireRecord("Q did not enable Quiet", (record) => record.reason === "keydown" && record.key?.toLowerCase() === "q" && record.quiet && record.quietClass);
+// Quiet Hours中は最初のQがWAKEになる。時刻に依存せずQを2回押した往復を検証する。
+const quietRecords = records.filter(record => record.reason === "keydown" && record.key?.toLowerCase() === "q");
+if (quietRecords.length < 2
+  || !quietRecords.some(record => record.quiet === true && record.quietClass === true)
+  || !quietRecords.some(record => record.quiet === false && record.quietClass === false)
+  || quietRecords[0].quiet === quietRecords[1].quiet) {
+  errors.push("Q did not toggle Quiet and Wake in both directions");
+}
 requireRecord("L did not open the Ledger", (record) => record.reason === "keydown" && record.key?.toLowerCase() === "l" && record.controlCenterOpen);
 requireRecord("keyboard navigation did not reach Replay", (record) => record.reason === "keydown" && record.key === "ArrowRight" && record.activeTab === "replays" && record.replayItems >= 2 && record.replayThumbnails >= 2);
 requireRecord("Escape did not close the Ledger", (record) => record.reason === "keydown" && record.key === "Escape" && !record.controlCenterOpen);

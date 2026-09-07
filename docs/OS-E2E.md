@@ -6,6 +6,12 @@ Release draftごとにGitHub ActionsのWindows 2025／macOS 15で実施し、run
 
 D-021によりDeveloper ID／Notarization／Authenticodeは初期公開の必須条件から外す。未検証をPASSにはしない。release Workflowで同一commitの両OS E2Eと配布成果物のinstall／launch／uninstallを検証し、4成果物のdownload・checksum生成まで成功させてから公開する。初回のGatekeeper／SmartScreen手動許可、旧公開版間upgrade、ユーザーデータの再install後保持は未検証として公開本文へ残す。
 
+## v0.1.0候補の時刻依存検出（未公開）
+
+[Release run 34076301252](https://github.com/coco4atJP/Token-Fire/actions/runs/34076301252)、commit `40c85c768ad762406875c99ebb48f1f78070e8bb`で、macOSの開始時Quiet=true、Q後Quiet=falseを記録した。アプリのWAKEは正常だったが、検証器がQ後trueを固定要求して失敗した。v0.1.0は公開せずタグを保持する。
+
+v0.1.1では両OSでQを2回送信し、QuietとWAKEの両状態およびCSS状態との一致を要求する。昼／深夜の固定時刻に依存せず、切替が壊れた場合は失敗する回帰試験を追加する。Quiet既定値やアプリ挙動は変更しない。
+
 ## 2026-08-27 GitHub-hosted OS別E2E
 
 [Windows OS E2E run 33071111052](https://github.com/coco4atJP/Token-Fire/actions/runs/33071111052)（commit `db6cec3ddf797b1944bfacbf0e90edb5a39a94dc`）で次をPASSした。
