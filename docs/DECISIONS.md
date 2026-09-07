@@ -388,6 +388,26 @@ Canvas 2D直接描画よりbundleは大きくなるが、Sprite再利用と描�
 明確になる。PixiJSのmajor更新、WebGLを使えない対象OSの追加、DPR上限、
 Replay rendererの変更時に見直す。
 
+## D-021 — 初期配布は証明書なしのpreviewとして公開する
+
+**状態:** Accepted（2026-09-07、ユーザーの明示方針）
+
+初期版はApple Developer ID／NotarizationとWindows Authenticodeを導入せず、GitHub Releasesの公開pre-releaseで配布する。macOSは証明書不要のad-hoc署名（identity `-`）でbundleの整合性を保ち、WindowsのMSI／NSISは未署名とする。ad-hoc署名は開発者の身元確認や公証を意味しない。
+
+### 公開ゲートと副作用
+
+- macOS arm64／x86_64 DMG、Windows x64 MSI／NSISを同一commitからbuildする
+- CI、既存OS別E2E、配布成果物のinstall・launch・uninstall、macOS同一版置換／NSIS同一版再installを通す
+- 4成果物をdraftからdownloadし、版番号・ファイル構成・SHA-256を確認して`SHA256SUMS`を添付してから公開する
+- Developer ID／Notarization／Authenticodeの成功は初期公開の必須条件から外す。未実施をPASSと表記しない
+- macOS Gatekeeper、Windows SmartScreen／Smart App Controlにより警告や実行拒否が起こり得る。公式設定画面のアプリ単位の許可だけを案内し、OS全体の保護無効化を要求しない。組織管理端末などで許可できない場合もある
+- 新旧公開版間upgrade、ユーザーデータの再install後保持、実sleep・GPU・複数monitorの未検証部分は既知の制限として公開する。初版には旧公開版がない
+- 自動更新、保存形式、Token会計、外部通信は変更しない。初期ユーザー数把握のためのtelemetryは追加しない
+
+### 見直し条件
+
+ユーザー数が増えてきた段階で、利用者からの反応や配布状況を材料に証明書費用・初回起動の負担を再評価する。人数の閾値は設けない。署名を導入するときはSecret登録、署名・公証検査、既存未署名版からの更新を別途検証する。
+
 ---
 
 ## 変更時のチェック

@@ -1,66 +1,40 @@
 # Token-Fire Release Runbook
 
-## 現在のゲート
+## 現在の方針
 
-`src-tauri/tauri.updater.example.json`は設計例であり、通常buildからは読み込まない。Updater plugin、公開鍵、endpointを`tauri.conf.json`へ入れる前に、D-014（外部通信）を更新し、鍵の保管者とrollback手順を合意する。
+D-021に従い、初期版は証明書なしの公開previewとする。Apple Developer ID・Notarization・Windows Authenticodeはユーザー数が増えてきた段階で再検討する。資格情報の登録は現在の公開条件ではない。
 
-`.github/workflows/release.yml`は`token-fire-v*` tagまたは手動実行でmacOS arm64／x86_64とWindows x86_64をbuildし、GitHub Releaseを必ずdraftで作る。公開は`docs/OS-E2E.md`完了後の手動操作とする。
+macOSは`APPLE_SIGNING_IDENTITY=-`によるad-hoc署名を使い、Developer ID署名や公証と区別する。透明windowに`macOSPrivateApi: true`を使うため、Mac App Storeには提出せずDMGを直接配布する。Windows MSI／NSISは未署名。自動更新は無効のまま維持する。
 
-`.github/workflows/windows-release-smoke.yml`は署名秘密情報を使わず、Windows Server 2025 x86_64で通常test、DPR 1／1.5／2の表示契約、native keyboard／Quiet／Replay、autostart／notification／hide-show、MSI／NSIS生成、MSI silent install、8秒起動、uninstallを検証する。ここで得るartifactは公開用ではなく、OS E2Eとinstall lifecycleの回帰検出専用である。
+## 公開手順
 
-`.github/workflows/macos-release-smoke.yml`はmacOS 15 hostでE2E専用debug `.app`を起動し、透明window、native keyboard／Quiet／Replay、autostart／notification／hide-showを検証する。その後x86_64 app／DMGをcross-buildし、Mach-O architecture、Info.plist、DMG checksum、Rosetta経由の8秒起動を検証する。公開用workflowも`macos-15`へ固定した。Developer ID署名・Notarizationは資格情報投入後のrelease workflowで行う。
+1. 公開対象commitで通常CIを成功させ、package／Cargo／Tauriのversionを一致させる。`npm run release:check`と`node scripts/release-preflight.mjs`を通す。
+2. 対象commitへ`token-fire-v0.1.0`を付ける。既存tagを別commitへ移動しない。Workflowの手動実行も可能だが、同じ版の別commitによる成果物の混在を避ける。
+3. Release desktopはmacOS arm64／x86_64、Windows x64をbuildして**draft／pre-release**を作る。同時に両OSの既存E2Eをreusable workflowとして実行する。
+4. 配布する同一DMGからappをコピーしてad-hoc整合性・architecture・8秒起動・同一版置換・app削除を検証する。MSI／NSISでinstall・8秒起動・uninstall、NSISで同一版再installを検証する。Windows署名状態は`NotSigned`であることを確認する。
+5. 全job成功後、`checksums`がdraftから4成果物をdownloadし、版番号とファイル構成を検査して`SHA256SUMS`を添付する。buildや受入が失敗したdraftは公開しない。
+6. run URL・commit・結果を`docs/OS-E2E.md`またはRelease本文へ記録する。版別本文`docs/releases/v0.1.0.md`には未署名の初回起動手順と既知の制限を含める。
+7. draftを公開pre-releaseへ変更する。署名・公証が成功したとは表記しない。
 
-macOSの透明windowはTauriの`app.macOSPrivateApi: true`を必要とする。この設定はMac App Store審査と両立しないため、Token-FireのmacOS配布は計画どおりDeveloper ID署名・Notarization済みDMGの直接配布に限定する。
+## 検証の境界
 
-## GitHub Environment `release` secrets
+GitHub-hosted Windows 2025／macOS 15のkeyboard、Quiet、Replay、通知、自動起動、hide/show、DPI契約を既存smokeで確認する。新しい物理PCは必須としない。
 
-### macOS
+hosted runnerの起動成功はブラウザdownload後のGatekeeper／SmartScreen通過を保証しない。OS保護を全体で無効にする手順は提供しない。Fullscreen／画面共有／集中モード連動、GPU差、複数monitor、実sleep、OS強制終了後の復元は未保証として扱う。
 
-- `APPLE_CERTIFICATE`: Developer ID Application `.p12`のbase64
-- `APPLE_CERTIFICATE_PASSWORD`: `.p12` export password
-- `KEYCHAIN_PASSWORD`: CI一時keychain用のランダム値
-- `APPLE_SIGNING_IDENTITY`: `Developer ID Application: ...`
-- `APPLE_API_ISSUER`, `APPLE_API_KEY`: App Store Connect API issuer／key ID
-- `APPLE_API_KEY_BASE64`: `.p8` private keyのbase64
+初版には旧公開版がないため、公開版間upgradeは対象なし。同一版再installはそれと区別する。ユーザーデータの再install・uninstall後の保持は未検証。JSON exportは世界DBだけで、設定や読込UIを含まないため、完全なバックアップ／復元機能と説明しない。保存形式と上限はD-004〜D-007を維持し、保存互換・破損JSON・未知version・保存直後復元を単体試験する。
 
-Notarizationとstaplingの完了後、`codesign --verify --deep --strict --verbose=2`、`spctl --assess --type execute --verbose=4`、`xcrun stapler validate`を成果物へ実行する。
+## 将来の署名導入
 
-### Windows
+導入するときは`release` Environmentへ次のSecretを登録する。値はチャットやIssueに貼らない。`node scripts/release-preflight.mjs --signing`で空欄を確認できるが、現在の未署名Workflowからは呼ばない。
 
-- `WINDOWS_CERTIFICATE`: OV/EV `.pfx`のbase64
-- `WINDOWS_CERTIFICATE_PASSWORD`: PFX password
+- Apple: `APPLE_CERTIFICATE`（Developer ID Application p12のbase64）、`APPLE_CERTIFICATE_PASSWORD`、`KEYCHAIN_PASSWORD`、`APPLE_SIGNING_IDENTITY`、`APPLE_API_ISSUER`、`APPLE_API_KEY`、`APPLE_API_KEY_BASE64`（p8のbase64）
+- Windows: `WINDOWS_CERTIFICATE`、`WINDOWS_CERTIFICATE_PASSWORD`。証明書提供方式に応じてimport／署名方式を再検討する
 
-CIはCurrentUser certificate storeへ一時importし、その証明書からthumbprintを取得して一時Tauri configの`bundle.windows.certificateThumbprint`へ渡す。`digestAlgorithm`はSHA-256、timestampはDigiCertを使う。build後は全EXE／MSIの`Get-AuthenticodeSignature`が`Valid`でなければworkflowを失敗させる。MSI／NSISのinstall・uninstall後に設定とworld dataの扱いが説明どおりであることは実機確認する。
+署名用Workflowは導入時に実装し、macOSは`codesign --verify --deep --strict`、`spctl --assess`、`xcrun stapler validate`、Windowsは`Get-AuthenticodeSignature`のValidを必須とする。未署名版からのupgradeも検証する。
 
-## Updater設計（未有効）
+## 自動更新と診断
 
-- Tauri signing keyはOS code-signing keyと分離し、秘密鍵はGitHub `release` Environmentだけに置く
-- `tauri-action`が生成する署名付き`latest.json`をGitHub Releasesへ置く
-- endpointは`https://github.com/OWNER/REPOSITORY/releases/latest/download/latest.json`
-- Windows install modeは既定の`passive`。無表示の`quiet`は採用しない
-- rolloutはdraft → 手動download E2E → 公開の順。壊れたreleaseはlatestから外し、既知正常版を再公開する
-- runtimeでの自動check頻度、ユーザー同意UI、送信されるversion／target／archはD-014更新時に確定する
+`src-tauri/tauri.updater.example.json`は例であり通常buildへ読み込まない。有効化時はD-014とPRIVACYを更新し、更新用署名鍵、endpoint、check頻度、送信情報、rollbackを決める。
 
-## 保存と復元
-
-保存形式、Project Key、Replay上限はD-004／D-006／D-007を維持する。release前に`worldPersistence.test.ts`でv2→v3、正史名移行、保存直後の再生成、破損JSON fallback、未知future versionの非破壊を通す。OSクラッシュ強制終了は実機E2Eで、最後の5秒保存窓より前のworld／Replayが復元されることを確認する。
-
-## 診断方針
-
-自動クラッシュ送信は導入しない。CI logとユーザーが明示exportしたworld databaseだけを診断材料にする。将来crash reporterを導入する場合は、送信内容、保存期間、送信先、opt-inをD-014と`PRIVACY.md`へ先に追加する。
-
-## v0.1.0公開準備
-
-初版は自動更新を有効にせず、GitHub Releasesからの手動ダウンロードとする。runtime、保存形式、外部通信の契約は変更しない。公開本文は`docs/releases/v0.1.0.md`をWorkflowが読み込む。
-
-`node scripts/release-preflight.mjs`はtagとpackage versionの一致、版別リリースノートの存在を確認する。`--signing`は必須Secretの空欄も確認し、欠けた**名前だけ**を出す。資格情報の有効性は後段の署名・公証と署名検証で確認する。
-
-1. `release` Environmentへ上記9件のSecretを登録する。秘密鍵やパスワードをIssue・PR・チャットへ貼らない。
-2. 公開対象commitでCIと両OS smokeを成功させ、run URLとSHAを`docs/OS-E2E.md`へ記録する。
-3. `package.json`、Cargo、Tauriのversion一致を確認し、対象commitへ`token-fire-v0.1.0`を付ける。タグは別commitへ移動しない。
-4. Release desktopを実行する。署名チェック後、macOS arm64／x86_64とWindows x64の全jobが成功したことを確認する。途中失敗したdraftは公開しない。
-5. draftから実際にダウンロードした署名付きDMG／MSI／NSISでinstall・起動・upgrade・uninstallを確認する。初版で旧公開版がない場合、同一版再インストールと開発版からの移行を分けて記録する。旧公開版からのupgradeは「対象なし」としPASSを捏造しない。
-6. 再インストール・更新前後の世界、設定、Replayを比較する。アンインストール後の保持／削除結果を記録し、公開本文に追記する。JSON exportには設定が含まれず、読込UIもないため完全な復元手段と説明しない。
-7. 公開本文と成果物を確認してdraftを公開する。
-
-署名済み成果物の検証は資格情報待ち。未署名smoke、localStorage復元の単体試験をその代替としてPASSにしない。
+自動crash reporter・telemetryは導入しない。CI logとユーザーが明示exportした世界DBを診断材料とする。利用者数増加の判断のために新しい外部通信を追加しない。

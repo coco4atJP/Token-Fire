@@ -76,11 +76,13 @@ for (const requiredMacosSmokeContract of [
 }
 for (const requiredWorkflowContract of [
   "platform: macos-15",
-  "certificateThumbprint",
-  "digestAlgorithm = \"sha256\"",
-  "Get-AuthenticodeSignature",
-  "codesign --verify --deep --strict",
-  "xcrun stapler validate",
+  "APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-15' && '-' || '' }}",
+  "scripts/release/verify-macos.sh",
+  "scripts/release/verify-windows.ps1",
+  "scripts/release/checksums.mjs",
+  "needs: [publish, macos-e2e, windows-e2e]",
+  "releaseDraft: true",
+  "prerelease: true",
 ]) {
   if (!releaseWorkflow.includes(requiredWorkflowContract)) {
     errors.push(`release workflow is missing: ${requiredWorkflowContract}`);

@@ -2,6 +2,10 @@
 
 Release draftごとにGitHub ActionsのWindows 2025／macOS 15で実施し、run ID・commit・runner・結果・artifactを記録する。署名資格情報が必要な検証と、GPU／複数monitorなどhosted runnerが保証しない項目は分離し、未実施をPASSとして扱わない。
 
+## 初期未署名公開のゲート（2026-09-07）
+
+D-021によりDeveloper ID／Notarization／Authenticodeは初期公開の必須条件から外す。未検証をPASSにはしない。release Workflowで同一commitの両OS E2Eと配布成果物のinstall／launch／uninstallを検証し、4成果物のdownload・checksum生成まで成功させてから公開する。初回のGatekeeper／SmartScreen手動許可、旧公開版間upgrade、ユーザーデータの再install後保持は未検証として公開本文へ残す。
+
 ## 2026-08-27 GitHub-hosted OS別E2E
 
 [Windows OS E2E run 33071111052](https://github.com/coco4atJP/Token-Fire/actions/runs/33071111052)（commit `db6cec3ddf797b1944bfacbf0e90edb5a39a94dc`）で次をPASSした。

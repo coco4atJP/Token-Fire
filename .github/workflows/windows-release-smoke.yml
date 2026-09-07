@@ -1,6 +1,7 @@
 name: Windows OS E2E and release smoke
 
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches:
