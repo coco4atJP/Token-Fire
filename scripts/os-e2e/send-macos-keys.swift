@@ -14,7 +14,7 @@ guard let application = NSRunningApplication(processIdentifier: pid) else {
 application.activate(options: [.activateAllWindows])
 Thread.sleep(forTimeInterval: 0.8)
 
-let keys: [CGKeyCode] = [12, 37, 48, 48, 124, 124, 53, 35, 35] // Q L Tab Tab Right Right Esc P P
+let keys: [CGKeyCode] = [12, 12, 37, 48, 48, 124, 124, 53, 35, 35] // Q Q L Tab Tab Right Right Esc P P
 for key in keys {
   CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true)?.post(tap: .cghidEventTap)
   CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false)?.post(tap: .cghidEventTap)

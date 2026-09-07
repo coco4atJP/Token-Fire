@@ -41,7 +41,7 @@ public static class TokenFireWindow {
   [TokenFireWindow]::SetForegroundWindow($app.MainWindowHandle) | Out-Null
   Start-Sleep -Milliseconds 700
 
-  foreach ($key in @('q', 'l', '{TAB}', '{TAB}', '{RIGHT}', '{RIGHT}', '{ESC}', 'p', 'p')) {
+  foreach ($key in @('q', 'q', 'l', '{TAB}', '{TAB}', '{RIGHT}', '{RIGHT}', '{ESC}', 'p', 'p')) {
     [System.Windows.Forms.SendKeys]::SendWait($key)
     Start-Sleep -Milliseconds 650
   }

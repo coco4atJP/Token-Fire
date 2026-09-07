@@ -1,6 +1,6 @@
 [package]
 name = "token-fire"
-version = "0.1.0"
+version = "0.1.1"
 description = "A puppet theatre that visualizes Codex activity as destruction and recovery"
 authors = ["coco4atJP"]
 edition = "2024"
