@@ -58,6 +58,10 @@ Token-Fireは環境保護を褒めるアプリではありません。
 - `P / L / Q / D / I / M`: キーボード操作
 - `Ctrl/Cmd + Shift + F`: ウィンドウ表示
 
+## 配布版の導入
+
+初版の導入・更新方法と既知の制限は[v0.1.0リリースノート](docs/releases/v0.1.0.md)を参照してください。初期版は証明書なしのpreviewとして配布し、起動時にOSの警告が出る場合があります。自動更新は無効で、公開後はGitHub Releasesから手動でダウンロードします。
+
 ## 開発起動
 
 ```bash
@@ -111,7 +115,7 @@ Tauri window + Tray + Notification + localStorage
 公開配布品質だけを`F3`として残しています。詳細は[`TODO.md`](TODO.md)を参照してください。
 
 - Windows / macOS実機ビルド
-- コード署名、Notarization
+- コード署名、Notarization（D-021により利用者増加後に再検討）
 - インストーラー、GitHub Releases、自動更新
 - OS別Tray、通知、自動起動、Fullscreen／画面共有／Do Not Disturb、マルチモニターE2E
 - セーブデータ移行とクラッシュ復元試験
