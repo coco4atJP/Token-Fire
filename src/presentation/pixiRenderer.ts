@@ -20,10 +20,13 @@ import {
   blinkOpennessAt,
   breathingScaleAt,
   delayedFollow,
+  idleDriftAt,
   sampleHammerMotion,
   sampleHopMotion,
   samplePopInScale,
   sampleSecondaryFollowAt,
+  sceneMotionBlendAt,
+  stampedeRhythmAt,
   volumePreservingScale,
 } from "./motion/spring";
 
@@ -228,7 +231,7 @@ export class PixiRenderer implements WorldRenderer {
     this.curtainTransition.clear();
 
     this.updateSceneTransition(active);
-    this.applyLayerMotion(world, scene);
+    this.applyLayerMotion(world, scene, active);
     this.drawMovingAtmosphere(world, active);
     this.drawWeatherParticles(world);
     this.drawLake(world);
@@ -329,24 +332,39 @@ export class PixiRenderer implements WorldRenderer {
     this.lastSceneFamily = family;
   }
 
-  private applyLayerMotion(world: WorldState, scene: WorldScene): void {
+  private applyLayerMotion(world: WorldState, scene: WorldScene, active: boolean): void {
     const time = this.motionTime(world.elapsed);
+    // active↔recovery の切替時だけ、ジオラマが前後に寄り添って逃がさない寄せを作る。
+    const currentFamily = active ? "active" : "recovery";
+    const transitionInProgress = this.transitionStartedAt >= 0 && currentFamily === this.lastSceneFamily;
+    const transitionProgress = transitionInProgress
+      ? Math.min(1, (performance.now() - this.transitionStartedAt) / 900)
+      : 1;
+    const blend = transitionInProgress
+      ? sceneMotionBlendAt(transitionProgress)
+      : { translateX: 0, translateY: 0, perspectiveScale: 1 };
+
     const driftX = Math.sin(time * 0.21) * 0.8;
     const driftY = Math.cos(time * 0.16) * 0.35;
     const shakeStrength = this.motion.motionScale * (scene === "gogo" ? 0.4 + world.combustionPulse * 0.75 : scene === "zero-output" ? 0.22 : world.combustionPulse * 0.28);
     const shakeX = Math.sin(time * 37) * shakeStrength;
     const shakeY = Math.cos(time * 29) * shakeStrength * 0.55;
-    this.backdrop.position.set(driftX * 0.24, driftY * 0.18);
-    this.backdropSprites.container.position.set(driftX * 0.24, driftY * 0.18);
-    this.environmentDecor.position.set(driftX * 0.24, driftY * 0.18);
-    this.atmosphere.position.set(driftX * 0.24, driftY * 0.18);
-    this.scenery.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
-    this.factoryGrowth.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
-    this.scenerySprites.container.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
-    this.patinaSprites.container.position.set(driftX * 0.62 + shakeX, driftY * 0.45 + shakeY);
-    this.staticRigging.position.set(driftX + shakeX, driftY + shakeY);
-    this.actorRigging.position.set(driftX + shakeX, driftY + shakeY);
-    this.actorSprites.container.position.set(driftX + shakeX, driftY + shakeY);
+    this.backdrop.position.set(driftX * 0.24 + blend.translateX * 0.5, driftY * 0.18 + blend.translateY * 0.5);
+    this.backdropSprites.container.position.set(driftX * 0.24 + blend.translateX * 0.5, driftY * 0.18 + blend.translateY * 0.5);
+    this.environmentDecor.position.set(driftX * 0.24 + blend.translateX * 0.5, driftY * 0.18 + blend.translateY * 0.5);
+    this.atmosphere.position.set(driftX * 0.24 + blend.translateX * 0.5, driftY * 0.18 + blend.translateY * 0.5);
+    this.scenery.position.set((driftX * 0.62 + shakeX + blend.translateX), (driftY * 0.45 + shakeY + blend.translateY));
+    this.factoryGrowth.position.set((driftX * 0.62 + shakeX + blend.translateX), (driftY * 0.45 + shakeY + blend.translateY));
+    this.scenerySprites.container.position.set((driftX * 0.62 + shakeX + blend.translateX), (driftY * 0.45 + shakeY + blend.translateY));
+    this.patinaSprites.container.position.set((driftX * 0.62 + shakeX + blend.translateX), (driftY * 0.45 + shakeY + blend.translateY));
+    this.staticRigging.position.set(driftX + shakeX + blend.translateX, driftY + shakeY + blend.translateY);
+    this.actorRigging.position.set(driftX + shakeX + blend.translateX, driftY + shakeY + blend.translateY);
+    this.actorSprites.container.position.set(driftX + shakeX + blend.translateX, driftY + shakeY + blend.translateY);
+    if (transitionInProgress) {
+      const scale = Math.max(0.92, blend.perspectiveScale);
+      const centerScenery = this.scenerySprites.container;
+      if (centerScenery.scale.x !== scale) centerScenery.scale.set(scale);
+    }
     this.effects.position.set(shakeX, shakeY);
     this.effectSprites.container.position.set(shakeX, shakeY);
   }
@@ -356,9 +374,9 @@ export class PixiRenderer implements WorldRenderer {
     if (this.atlas.has(key)) {
       this.sprite(this.backdropSprites, key, WORLD_WIDTH / 2, WORLD_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT);
     } else {
-      const top = active ? 0x52272b : 0x6fa6b7;
-      const middle = active ? 0x76513f : 0x86b49b;
-      const bottom = active ? 0x4f382d : 0x4f7049;
+      const top = active ? 0x5a2e32 : 0x7ab4c8;
+      const middle = active ? 0x825a48 : 0x92c4a8;
+      const bottom = active ? 0x5a4034 : 0x5a8058;
 
       this.backdrop.rect(0, 0, WORLD_WIDTH, 72).fill(top);
       this.backdrop.rect(0, 72, WORLD_WIDTH, 48).fill(middle);
@@ -896,10 +914,11 @@ export class PixiRenderer implements WorldRenderer {
     const ember = 1 + Math.sin(time * 3.1) * 0.09;
     this.sprite(this.effectSprites, "flame", 254, 131, 10 * ember, 14 * ember, { alpha: 0.7 });
 
+    // idle では Sumi が落ち込み、Hinoko がのんびり明ける。平静でなく、生活している。
     const yawn = Math.max(0, Math.sin(time * 0.55));
     this.character("sumi", world, 221, 166 + yawn * 1.2, 30, 42 - yawn * 2, { expressionFrame: 3, alpha: 0.9 });
-    this.character("kururi", world, 171, 167, 36, 42, { expressionFrame: 1, rotation: Math.sin(time * 0.8) * 0.018 });
-    this.character("hinoko", world, 201, 168, 35, 44, { expressionFrame: 1, alpha: 0.92 });
+    this.character("kururi", world, 171, 167 + Math.sin(time * 0.4) * 0.25, 36, 42, { expressionFrame: 1, rotation: Math.sin(time * 0.8) * 0.018 });
+    this.character("hinoko", world, 201, 168 + Math.sin(time * 0.42) * 0.2, 35, 44, { expressionFrame: 1, alpha: 0.92 });
     this.actorRigging.roundRect(155, 147, 25, 18, 2).fill({ color: 0xd5bd87, alpha: 0.9 }).stroke({ color: 0x6a4328, width: 1, alpha: 0.8 });
     this.actorRigging.moveTo(159, 152).lineTo(176, 152).moveTo(159, 157).lineTo(171, 157).stroke({ color: 0x755037, width: 0.8, alpha: 0.66 });
     if (yawn > 0.72) {
@@ -942,10 +961,11 @@ export class PixiRenderer implements WorldRenderer {
   }
 
   private drawApprovalCrew(world: WorldState): void {
+    const time = this.motionTime(world.elapsed);
     // 機械を止め、六人を同じ驚き表情で観客側へ向ける。判断条件はWorldScene側だけに置く。
-    this.character("kururi", world, 139, 169, 35, 41, { expressionFrame: 4 });
-    this.character("hinoko", world, 179, 170, 43, 53, { expressionFrame: 4 });
-    this.character("sumi", world, 219, 169, 33, 45, { expressionFrame: 4 });
+    this.character("kururi", world, 139, 169 + stampedeRhythmAt(time) * 0.1, 35, 41, { expressionFrame: 4 });
+    this.character("hinoko", world, 179, 170 + stampedeRhythmAt(time) * 0.11, 43, 53, { expressionFrame: 4 });
+    this.character("sumi", world, 219, 169 + stampedeRhythmAt(time) * 0.1, 33, 45, { expressionFrame: 4 });
     this.character("mebuki", world, 252, 169, 31, 44, { expressionFrame: 3 });
     this.character("mizumo", world, 285, 168, 29, 40, { expressionFrame: 2 });
     this.character("fuwame", world, 238, 103, 38, 38, { expressionFrame: 3, anchorY: 0.5 });
@@ -963,15 +983,16 @@ export class PixiRenderer implements WorldRenderer {
 
   private drawCeremonyCrew(world: WorldState): void {
     const time = this.motionTime(world.elapsed);
+    const sumiHopPhase = time * 1.8;
     const hinokoHop = sampleHopMotion(time, 1.8, 0);
     const sumiHop = sampleHopMotion(time, 1.8, 0.58);
     const kururiHop = sampleHopMotion(time, 1.8, 1.16);
     this.character("hinoko", world, 213, 167 + hinokoHop.y * 0.18, 49, 61, { expressionFrame: 2, stretch: hinokoHop.stretch });
     this.character("sumi", world, 262, 169 + sumiHop.y * 0.14, 34, 48, { expressionFrame: 2, stretch: sumiHop.stretch });
     this.character("kururi", world, 155, 169 + kururiHop.y * 0.14, 39, 45, { expressionFrame: 2, flipX: true, stretch: kururiHop.stretch });
-    this.character("mebuki", world, 294, 169, 29, 41, { expressionFrame: 2, flipX: true, alpha: 0.9 });
-    this.character("fuwame", world, 251, 89, 39, 39, { expressionFrame: 1, anchorY: 0.5, alpha: 0.9 });
-    this.character("mizumo", world, 319, 168, 22, 31, { expressionFrame: 1, flipX: true, alpha: 0.72 });
+    this.character("mebuki", world, 294, 169 + sumiHop.y * 0.08, 29, 41, { expressionFrame: 2, flipX: true, alpha: 0.9 });
+    this.character("fuwame", world, 251, 89 + Math.sin(time * 0.3) * 0.18, 39, 39, { expressionFrame: 1, anchorY: 0.5, alpha: 0.9 });
+    this.character("mizumo", world, 319, 168 + sumiHop.y * 0.08, 22, 31, { expressionFrame: 1, flipX: true, alpha: 0.72 });
     this.effects
       .moveTo(202, 112)
       .lineTo(207, 102)
@@ -984,6 +1005,10 @@ export class PixiRenderer implements WorldRenderer {
     this.effects.rect(204, 110, 19, 5).fill({ color: 0xd89831, alpha: 0.98 });
     this.effects.roundRect(184, 118, 56, 9, 2).fill({ color: 0xe8c96b, alpha: 0.82 }).stroke({ color: 0x80522c, width: 1 });
     this.effects.circle(212, 122, 3).fill({ color: 0xb75b2c, alpha: 0.92 });
+    // 祭りでは Sumi のヤル気が跳ね、火花を散らすことを表現する。
+    if (sumiHopPhase % 1 > 0.95 && sumiHop.y < -0.5) {
+      this.effects.circle(262, 154, 2.25).fill({ color: 0xffd46e, alpha: 0.8 });
+    }
   }
 
   private drawRecoveryCrew(world: WorldState): void {
@@ -993,11 +1018,11 @@ export class PixiRenderer implements WorldRenderer {
     const secondary = sampleSecondaryFollowAt(motionTime);
 
     // 休止中の非主役は奥の待機列へ。半透明の巨大像にせず、劇団が居る気配だけ残す。
-    this.character("kururi", world, layout.kururi.x, layout.kururi.y, layout.kururi.width, layout.kururi.height, {
+    this.character("kururi", world, layout.kururi.x, layout.kururi.y + idleBob, layout.kururi.width, layout.kururi.height, {
       alpha: 0.26,
       tint: 0xb9a48c,
     });
-    this.character("hinoko", world, layout.hinoko.x, layout.hinoko.y + idleBob, layout.hinoko.width, layout.hinoko.height, {
+    this.character("hinoko", world, layout.hinoko.x, layout.hinoko.y + idleBob * 0.6, layout.hinoko.width, layout.hinoko.height, {
       alpha: 0.26,
       tint: 0xb9a48c,
     });
@@ -1010,6 +1035,13 @@ export class PixiRenderer implements WorldRenderer {
       layout.sleepingSumi.height,
       { alpha: 0.26, flipX: true, expressionFrame: 3, tint: 0xb9a48c },
     );
+    // 回復では、家族がんがん寝て、Mebuki が寂しく麓を見守るらせん。小さな躍動を感じさせる。
+    const hinokoSnore = Math.sin(motionTime * 0.3) * 0.8;
+    if (idleBob > 0.5) {
+      this.effects
+        .circle(layout.hinoko.x + 8, layout.hinoko.y - 12, 0.95 + hinokoSnore * 0.1)
+        .stroke({ color: 0xe8f2dc, width: 0.7, alpha: 0.4 });
+    }
     for (let index = 0; index < 2; index += 1) {
       const phase = (this.motionTime(world.elapsed) * 0.32 + index * 0.38) % 1;
       this.effects
@@ -1018,22 +1050,25 @@ export class PixiRenderer implements WorldRenderer {
     }
 
     const cloudX = layout.fuwame.x + Math.sin(this.motionTime(world.elapsed) * 0.65) * 11 + world.interaction.fuwameOffsetX;
-    const cloudY = layout.fuwame.y + Math.sin(this.motionTime(world.elapsed) * 1.3) * 1.4;
+    const cloudY = layout.fuwame.y + Math.sin(this.motionTime(world.elapsed) * 1.3) * 1.4 + idleDriftAt(motionTime, 53).x;
     this.actorRigging
       .moveTo(layout.fuwame.x - 8, 9)
       .lineTo(cloudX - 7 - delayedFollow(this.motionTime(world.elapsed), 0.65, 0.22, 1.8), cloudY - 18)
       .moveTo(layout.fuwame.x + 8, 9)
       .lineTo(cloudX + 7 - delayedFollow(this.motionTime(world.elapsed), 0.65, 0.3, 1.4), cloudY - 18)
       .stroke({ color: 0xd8c5a2, width: 0.65, alpha: 0.48 });
+    // 雨ケ鉱は idle drift が加速し、動的なのに平穏を形付ける。
     this.character("fuwame", world, cloudX, cloudY, layout.fuwame.width, layout.fuwame.height, { anchorY: 0.5 });
     if (world.rain > 0.58) {
       this.sprite(this.actorSprites, "rainCloud", cloudX - 34, cloudY + 2, 26, 26, { anchorY: 0.5, alpha: 0.52 });
     }
 
+    // ボスブルでは idle drift するっす涼。爽和したフォルムでパターンだ。
     this.sprite(this.actorSprites, "shrub", 116, 169, 24, 24, { alpha: 0.78 });
     this.sprite(this.actorSprites, "shrub", 164, 170, 18, 18, { alpha: 0.68, flipX: true });
 
     const sprigBob = Math.sin(this.motionTime(world.elapsed) * 3.5) * 1.05;
+    // Mebuki は釣り声で下がり上がりな森でじゃれる。———南楠落下来。
     this.character("mebuki", world, layout.mebuki.x, layout.mebuki.y + sprigBob, layout.mebuki.width, layout.mebuki.height);
     this.sprite(
       this.actorSprites,
@@ -1060,6 +1095,7 @@ export class PixiRenderer implements WorldRenderer {
     });
 
     const mizumoBob = Math.sin(this.motionTime(world.elapsed) * 2.2) * 1.05;
+    // Mizumo は湖から漂流する『添傑らしい保持力』のように反動する。
     this.character("mizumo", world, layout.mizumo.x, layout.mizumo.y + mizumoBob, layout.mizumo.width, layout.mizumo.height, {
       rotation: Math.sin(this.motionTime(world.elapsed) * 2) * 0.022,
     });
@@ -1163,10 +1199,10 @@ export class PixiRenderer implements WorldRenderer {
       this.sprite(this.theatreSprites, "prosceniumFrame", WORLD_WIDTH / 2, WORLD_HEIGHT, WORLD_WIDTH, WORLD_HEIGHT);
       return;
     }
-    const wood = active ? 0x4d2f24 : 0x49352a;
-    const woodLight = active ? 0x835136 : 0x71513a;
-    const curtain = active ? 0x6e1f25 : 0x4e2434;
-    const curtainLight = active ? 0xa63c34 : 0x74415a;
+    const wood = active ? 0x5a3628 : 0x524030;
+    const woodLight = active ? 0x965e3c : 0x825c44;
+    const curtain = active ? 0x7a2430 : 0x5a2a3c;
+    const curtainLight = active ? 0xb84840 : 0x844a62;
 
     this.proscenium.rect(0, 0, WORLD_WIDTH, 13).fill(wood);
     this.proscenium.rect(0, 0, WORLD_WIDTH, 5).fill(woodLight);
@@ -1290,6 +1326,8 @@ export class PixiRenderer implements WorldRenderer {
     const expressionFrame = options.expressionFrame
       ?? (blinkOpenness < 0.22 && !reacting ? CHARACTER_EXPRESSION_FRAMES[id].sleepy : CHARACTER_EXPRESSION_FRAMES[id][life.mood]);
     const breath = this.motion.motionScale === 0 ? 1 : breathingScaleAt(time, CHARACTER_MOTION_SEEDS[id]);
+    // idle の揺れで個性だけを数える。単調だが静かに行ったり来たりする。
+    const drift = this.motion.motionScale === 0 ? { x: 0, y: 0 } : idleDriftAt(time, CHARACTER_MOTION_SEEDS[id]);
     const volume = volumePreservingScale(breath, (options.stretch ?? 1) * (1 - reactionWave * 0.08));
     const entranceScale = this.motion.motionScale > 0 && reacting && world.activeEvent && world.eventElapsed < 1
       ? samplePopInScale(world.eventElapsed)
@@ -1297,8 +1335,8 @@ export class PixiRenderer implements WorldRenderer {
     this.cutout(
       this.actorSprites,
       id,
-      x + life.offsetX,
-      y + life.offsetY - reactionWave * 2.2,
+      x + life.offsetX + drift.x,
+      y + life.offsetY - reactionWave * 2.2 + drift.y,
       width * scale * entranceScale * volume.sx,
       height * scale * entranceScale * volume.sy,
       {

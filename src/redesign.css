@@ -189,6 +189,14 @@ textarea:focus-visible,
   background: transparent;
   box-shadow: none;
   text-shadow: none;
+  /* 操業札が風に揺れるように、微細な回転を加える */
+  transform-origin: 50% 0;
+  animation: ticker-sway 6.8s ease-in-out infinite;
+}
+
+@keyframes ticker-sway {
+  0%, 100% { transform: rotate(-0.4deg); }
+  50% { transform: rotate(0.6deg); }
 }
 
 .stage-ticker::after {

@@ -2,14 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   blinkOpennessAt,
   FIXED_SPRING_STEP,
+  idleDriftAt,
   sampleHammerMotion,
   sampleHopMotion,
   samplePopInScale,
   sampleSecondaryFollowAt,
   sampleSpringAt,
   sampleVelocityImpulseAt,
-  Spring,
+  sceneMotionBlendAt,
+  sceneUrgencyGazeAt,
+  sampleSceneTransitionSpringAt,
   SPRING_TOKENS,
+  stampedeRhythmAt,
+  Spring,
   volumePreservingScale,
 } from "./spring";
 
@@ -74,5 +79,40 @@ describe("presentation spring", () => {
     expect(sample.tool).not.toBe(sample.primary);
     expect(sample.chimney).not.toBe(sample.tool);
     expect(sample.string).not.toBe(sample.chimney);
+  });
+
+  it("scene family transition は安定した spring でリリースする", () => {
+    for (let time = 0; time <= 4; time += 0.5) {
+      const progress = sampleSceneTransitionSpringAt(time);
+      expect(Number.isFinite(progress)).toBe(true);
+      expect(progress).toBeGreaterThanOrEqual(0);
+      expect(progress).toBeLessThanOrEqual(1.2);
+    }
+    const blend = sceneMotionBlendAt(0.5);
+    expect(Number.isFinite(blend.perspectiveScale)).toBe(true);
+    expect(blend.perspectiveScale).toBeGreaterThan(0.88);
+    expect(blend.perspectiveScale).toBeLessThanOrEqual(1);
+  });
+
+  it("urgency gaze は scene に応じて左右を反転し、昼夜で上下を変える", () => {
+    const approvalGaze = sceneUrgencyGazeAt(0.8, "approval");
+    expect(approvalGaze.gazeX).toBeLessThan(0);
+    const meraGaze = sceneUrgencyGazeAt(0.8, "mera");
+    expect(meraGaze.gazeX).toBeGreaterThan(0);
+    const nightGaze = sceneUrgencyGazeAt(0.5, "mera", "night");
+    expect(nightGaze.gazeY).toBeLessThan(meraGaze.gazeY);
+  });
+
+  it("idle drift と stampede rhythm は finite を保ち、sceneContract を侵さない", () => {
+    for (let time = 0; time <= 30; time += 0.137) {
+      for (let seed = 0; seed < 3; seed += 1) {
+        const drift = idleDriftAt(time, seed);
+        expect(Number.isFinite(drift.x)).toBe(true);
+        expect(Math.abs(drift.x)).toBeLessThan(1);
+        const stamp = stampedeRhythmAt(time);
+        expect(Number.isFinite(stamp)).toBe(true);
+        expect(Math.abs(stamp)).toBeLessThan(0.5);
+      }
+    }
   });
 });

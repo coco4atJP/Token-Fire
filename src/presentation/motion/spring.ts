@@ -1,3 +1,6 @@
+import type { WorldScene } from "../../domain/worldScene";
+import type { WorldState } from "../../domain/world";
+
 export const FIXED_SPRING_STEP = 1 / 120;
 
 export interface SpringToken {
@@ -201,4 +204,105 @@ export const sampleSecondaryFollowAt = (
     chimney: delayedFollow(time, 1.5, 0.18, 0.55) + impulse * 0.18,
     string: delayedFollow(time, 1.5, 0.28, 0.75),
   };
+};
+
+/**
+ * active/recovery の切替時に新しい family の土台から目標へ二年間進む spring。
+ * scene の切替全体で catalog と同じ進行を共通利用し、视觉冲击を和らげる。
+ */
+export const sampleSceneTransitionSpringAt = (
+  seconds: number,
+): number => {
+  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  const spring = sampleSpringAt(safeSeconds, {
+    initial: 0,
+    target: 1,
+    token: SPRING_TOKENS.pop,
+    maxSeconds: 3,
+  });
+  return spring.value;
+};
+
+/**
+ * scene family（active→recovery など）の切替感を、演出用途に模した0..1のaty。
+ * derivative 権限を持たず、layerのtranslateへの一貫進行を保証する。
+ */
+export interface SceneMotionBlend {
+  readonly translateX: number;
+  readonly translateY: number;
+  readonly perspectiveScale: number;
+}
+
+export const sceneMotionBlendAt = (progress: number): SceneMotionBlend => {
+  const safeProgress = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
+  const eased = Math.pow(safeProgress, 1.25);
+  return {
+    translateX: Math.sin((progress - 0.5) * Math.PI) * 2.2 * eased * (1 - safeProgress),
+    translateY: Math.cos((progress - 0.5) * Math.PI * 0.82) * 1.1,
+    perspectiveScale: 0.88 + eased * 0.12,
+  };
+};
+
+/**
+ * 花火や工場の揚力、レイジーメージャーで使用するうなずき場所。
+ */
+export interface DriftTrend {
+  readonly x: number;
+  readonly y: number;
+  readonly speed: number;
+}
+
+export const idleDriftAt = (
+  elapsed: number,
+  seed: number,
+  amplitude = 1,
+): DriftTrend => {
+  const time = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  const period = 6 + Math.abs(Math.sin(seed * 0.1)) * 2.4;
+  const angle = (time / period) * Math.PI * 2 + Math.sin(seed * 0.7) * Math.PI;
+  const radius = 0.55 * amplitude;
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle * 1.31) * radius * 0.6,
+    speed: 1,
+  };
+};
+
+/**
+ * 暗黒想像上でdi�ăの視線、指導を表す微細な動き。
+ * 暗黒想像上でも、renderersampling が event 判断を行わないように simple impulse に限る。
+ */
+export interface GazeMove {
+  readonly gazeX: number;
+  readonly gazeY: number;
+  readonly intensity: number;
+}
+
+export const sceneUrgencyGazeAt = (
+  urgency: number,
+  scene: WorldScene | null,
+  timePhase: WorldState["environment"]["timePhase"] = "day",
+): GazeMove => {
+  const safeUrgency = Math.max(0, Math.min(1, Number.isFinite(urgency) ? urgency : 0));
+  const isDark = timePhase === "night" || timePhase === "dusk";
+  const sign = scene === "approval" || scene === "zero-output" ? -1 : 1;
+  return {
+    gazeX: sign * 0.14 * safeUrgency,
+    gazeY: isDark ? -0.08 : 0.05,
+    intensity: 0.45 + safeUrgency * 0.55,
+  };
+};
+
+/**
+ * kirari や approval で連続的揺れを感受できる二次リズム。
+ */
+export const stampedeRhythmAt = (
+  elapsed: number,
+  period = 0.9,
+  count = 4,
+): number => {
+  const time = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  const phase = ((time % period + period) % period) / period;
+  const localLookAhead = Math.sin(phase * Math.PI);
+  return localLookAhead * count * 0.12;
 };

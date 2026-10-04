@@ -1,0 +1,70 @@
+{
+  "capturedAt": "2026-08-31T08:45:32.730Z",
+  "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "contract": "DPR 2 rendered; native plus 1 image px / 1 CSS px normalized",
+  "time": "dusk",
+  "growth": 18,
+  "elapsed": 120,
+  "determinismChecked": false,
+  "baseline": null,
+  "failOnDiff": false,
+  "captures": [
+    {
+      "scene": "mera",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "79ec7fa9cc2e452e64a9b303195efc77c450dffe9115bfcc945015f32dc65603",
+      "nativeSha256": "9e84e6876d308d8ca020f21e537b142e3bbfa2de22e9d4bc0eba555a73c7aba2",
+      "consoleErrors": 0,
+      "deterministicPixels": null,
+      "baselineDiff": null,
+      "performance": null,
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.9736328125,
+        "toolbarMinHeightPx": 36.0088005065918
+      }
+    },
+    {
+      "scene": "kirari",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "437404737f18beb306b0e8d30fbe477df2680684fec8dcaf2eddf46f19540976",
+      "nativeSha256": "b3345d1e5a3fc1c3682aaf8ba561d57d16bff7f0a361150ecb6036f9a9de43cc",
+      "consoleErrors": 0,
+      "deterministicPixels": null,
+      "baselineDiff": null,
+      "performance": null,
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 65.00650024414062,
+        "toolbarMinHeightPx": 36.068119049072266
+      }
+    },
+    {
+      "scene": "meguri",
+      "viewport": "560x350",
+      "dpr": 2,
+      "normalizedSha256": "963386461538ce4da4f127305beb7dcfbe46f8a0d83366fb15d90bcb4ed48479",
+      "nativeSha256": "05acab9d2d6880b844e819e93f5e47751d58c9b431f15622fb107f63888d6c78",
+      "consoleErrors": 0,
+      "deterministicPixels": null,
+      "baselineDiff": null,
+      "performance": null,
+      "uiContract": {
+        "viewportOverflowX": 0,
+        "viewportOverflowY": 0,
+        "tickerTextMinPx": 12,
+        "tickerTextClipped": 0,
+        "toolbarMinWidthPx": 64.9725341796875,
+        "toolbarMinHeightPx": 36.00678634643555
+      }
+    }
+  ]
+}
