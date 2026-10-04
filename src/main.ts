@@ -2,6 +2,9 @@ import "./styles.css";
 import "./experience.css";
 import "./advancedExperience.css";
 import "./redesign.css";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { createNativeWorldPersistence } from "./infrastructure/nativeWorldPersistence";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AppController, type ControllerView, type SourceMode } from "./application/appController";
@@ -80,6 +83,16 @@ const playGuide = requireElement<HTMLElement>(".play-guide");
 const playGuideClose = requireElement<HTMLButtonElement>(".play-guide button");
 const stageLoading = requireElement<HTMLDivElement>(".stage-loading");
 const isDesktop = "__TAURI_INTERNALS__" in window;
+const storageWarning = document.createElement("div");
+storageWarning.setAttribute("role", "alert");
+storageWarning.style.cssText = "position:fixed;bottom:8px;left:8px;right:8px;z-index:9999;padding:8px;background:#492c23;color:#fff;font-size:12px";
+storageWarning.hidden = true;
+app.append(storageWarning);
+window.addEventListener("token-fire:storage-error", () => {
+  storageWarning.textContent = "世界を保存できません。以前の保存は保持しています。空き容量や保存データを確認してください。";
+  storageWarning.hidden = false;
+});
+window.addEventListener("token-fire:storage-recovered", () => { storageWarning.hidden = true; });
 const setMenuMeta = (button: HTMLButtonElement, value: string): void => {
   const meta = button.querySelector<HTMLElement>("small");
   if (meta) meta.textContent = value;
@@ -114,7 +127,38 @@ toolbar.classList.toggle("is-inviting", !settings.get().playIntroSeen);
 const platform = new PlatformBridge();
 let developmentFixture: DevelopmentFixture | null = null;
 let osE2E = false;
-let persistence: WorldPersistence = new BrowserWorldPersistence();
+// 読込失敗時にも通常終了できるよう、初期化前から終了要求を受ける。
+let prepareForQuit = (): Promise<void> => Promise.resolve();
+let completeQuit = (): void => {};
+let cancelQuit = (): void => {};
+let quitRequestPending = false;
+if (isDesktop) {
+  await listen("token-fire:prepare-quit", async () => {
+    if (quitRequestPending) return;
+    quitRequestPending = true;
+    app.inert = true;
+    try {
+      await prepareForQuit();
+      await invoke("finish_world_quit");
+      completeQuit();
+    } catch (error) {
+      cancelQuit();
+      app.inert = false;
+      // 終了を強行せず、描画・監視を再開し、旧saveとメモリを保持する。
+      await getCurrentWindow().show().catch(() => {});
+      window.alert(`保存できないため終了を中止しました。空き容量を確認してTrayから終了を再試行してください。\n${String(error)}`);
+    } finally {
+      quitRequestPending = false;
+    }
+  });
+}
+let persistence: WorldPersistence;
+try {
+  persistence = isDesktop ? await createNativeWorldPersistence() : new BrowserWorldPersistence();
+} catch (error) {
+  stageLoading.textContent = "保存データを安全に読み込めませんでした。元データは変更していません。再起動するか、バックアップを確認してください。";
+  throw error;
+}
 const eventPacks = new EventPackRegistry();
 const attention = new AttentionDirector(settings, platform, () => developmentFixture === null);
 const environment = new EnvironmentDirector(settings);
@@ -224,6 +268,9 @@ controller.subscribe((world, snapshot) => {
   shell.classList.toggle("is-quiet", readEffectiveQuiet());
   shell.classList.toggle("reduce-flash", settings.get().attention.reduceFlash);
 });
+prepareForQuit = () => controller.prepareToQuit();
+completeQuit = () => controller.completeQuit();
+cancelQuit = () => controller.cancelQuit();
 controller.start();
 if (developmentFixture && new URLSearchParams(window.location.search).get("tfCapture") === "1") {
   controller.pausePresentationForCapture();
