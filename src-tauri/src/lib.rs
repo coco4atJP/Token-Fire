@@ -1,17 +1,76 @@
 mod codex;
+mod world_storage;
 
 use codex::{AgentSnapshot, CodexWatcher};
 use serde::Serialize;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
+use world_storage::{StorageStatus, WorldStore};
 
 struct MonitorState {
     watcher: Mutex<CodexWatcher>,
+}
+
+struct WorldStorageState(Arc<Mutex<WorldStore>>);
+
+#[derive(Default)]
+struct WorldQuitState {
+    requested: AtomicBool,
+    ready: AtomicBool,
+}
+
+// ディスクI/OはWebViewの描画スレッドから外し、同時IPCは一つの置換手順へ直列化する。
+#[tauri::command]
+async fn read_world_projects(state: State<'_, WorldStorageState>) -> Result<Vec<String>, String> {
+    let store = Arc::clone(&state.inner().0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store.lock().map_err(|_| "world storage lock was poisoned".to_string())?;
+        store.read_projects()
+    }).await.map_err(|error| format!("world storage task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn write_world_project(key: String, data: String, state: State<'_, WorldStorageState>) -> Result<(), String> {
+    let store = Arc::clone(&state.inner().0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store.lock().map_err(|_| "world storage lock was poisoned".to_string())?;
+        store.write_project(&key, &data)
+    }).await.map_err(|error| format!("world storage task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn world_storage_status(state: State<'_, WorldStorageState>) -> Result<StorageStatus, String> {
+    let store = Arc::clone(&state.inner().0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = store.lock().map_err(|_| "world storage lock was poisoned".to_string())?;
+        store.status()
+    }).await.map_err(|error| format!("world storage task failed: {error}"))?
+}
+
+fn request_world_quit(app: &tauri::AppHandle) {
+    let state = app.state::<WorldQuitState>();
+    state.requested.store(true, Ordering::Release);
+    // 保存失敗時は起動したままにする。再度「終了」を選べば再試行でき、無断のタイムアウト終了はしない。
+    if let Err(error) = app.emit("token-fire:prepare-quit", ()) {
+        eprintln!("could not request a final world save: {error}");
+        show_main_window(app);
+    }
+}
+
+#[tauri::command]
+fn finish_world_quit(app: tauri::AppHandle, state: State<'_, WorldQuitState>) -> Result<(), String> {
+    if !state.requested.load(Ordering::Acquire) {
+        return Err("world quit was not requested".into());
+    }
+    state.ready.store(true, Ordering::Release);
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]
@@ -101,10 +160,14 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(WorldQuitState::default())
         .manage(MonitorState {
             watcher: Mutex::new(CodexWatcher::new()),
         })
         .setup(|app| {
+            app.manage(WorldStorageState(Arc::new(Mutex::new(WorldStore::new(
+                app.path().app_data_dir()?.join("worlds-v3"),
+            )))));
             let show = MenuItem::with_id(app, "show", "Token-Fireを表示", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide", "隠す", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
@@ -117,7 +180,7 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => show_main_window(app),
                     "hide" => hide_main_window(app),
-                    "quit" => app.exit(0),
+                    "quit" => request_world_quit(app),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -136,11 +199,32 @@ pub fn run() {
             tray.build(app)?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // OSの閉じる操作もTray退避に統一し、終了保存を担うWebViewを破棄しない。
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             poll_codex,
             write_os_e2e_report,
-            os_e2e_platform_snapshot
+            os_e2e_platform_snapshot,
+            read_world_projects,
+            write_world_project,
+            world_storage_status,
+            finish_world_quit
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Token-Fire");
+        .build(tauri::generate_context!())
+        .expect("error while building Token-Fire")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if !app.state::<WorldQuitState>().ready.load(Ordering::Acquire) {
+                    api.prevent_exit();
+                    request_world_quit(app);
+                }
+            }
+        });
 }

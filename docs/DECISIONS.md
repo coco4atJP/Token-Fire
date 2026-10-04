@@ -73,28 +73,36 @@ Codexの`project_path`をプロジェクト世界のキーとして使う。パ�
 
 Git Repositoryのremote URLや安定したWorkspace IDを安全に取得できるようになった場合。
 
-## D-005 — 世界・設定・Event PackはローカルWebViewストレージへ保存する
+## D-005 — 世界保存はproject単位の有界checkpointにする
 
-**状態:** Accepted
+**状態:** Accepted（WAL枯渇対策、2026-10-04）
 
-現段階ではTauriのファイルDBを追加せず、WebViewの`localStorage`へ保存する。
+約964KBの全DBを5秒ごとにlocalStorageへ書き戻す実装が、WebKit WALを118GBまで増加させた。論理JSONサイズ制限では物理WALを制限できないため、Tauri常駐版はapp-data配下の`worlds-v3`へproject単位で保存する。DOM/Tauri依存はinfrastructureとnative commandへ隔離し、WorldStateへ保存先を混ぜない。
 
-### 保存キー
+### 保存形式と移行
 
-- 世界DB: `token-fire.worlds.v3`
-- 設定: `token-fire.settings.v1`
-- カスタムEvent Pack: `token-fire.event-packs.v1`
+- projectごとの`{version:3, project:...}`。安全なファイル名はproject keyから導出し、任意パスは受け付けない
+- 同一ディレクトリの一時fileを同期してから置換する。現在・前回backup・一時fileの世代数は有界。append logやSQLite WALは使わない
+- 旧`token-fire.worlds.v3`と`token-fire.world.v2`は読取り移行元として保持し、削除・再書込しない。v2はLegacy Factoryへ移行する
+- 移行先に確定済projectがあれば優先し、同じ旧データを毎起動コピーしない。未知version・native読込失敗は書込禁止で停止し、古いlocalStorageへのfallbackで上書きしない
+- browser previewだけは`token-fire.project.v3:<encoded key>`を使用する。これはWALサイズ保証を持たないため常駐リリース対象ではない
+- 設定`token-fire.settings.v1`、Event Pack`token-fire.event-packs.v1`は従来通り。旧キャラクター・履歴・Discovery・Replayイベント名の正史化を維持する
+- データベース全体の手動JSON exportは引き続き可能。エクスポートは保存確定の証明ではなく現在のメモリcheckpoint
 
-### 帰結
+### dirty・耐障害性
 
-- 保存失敗や容量不足でもライブシミュレーションは継続する
-- データベース全体をJSONとして手動エクスポートできる
-- v2の単一世界は`Legacy Factory`へ移行する
-- v3の旧キャラクターID、`cinder-feast`、履歴、Discovery、Replay内イベント名はロード時に正史名へ移行し、次回保存で正規化する
-- `token-fire.worlds.v3`と`token-fire.settings.v1`は正史化や案内既読の追加では変更しない
-- `openingBriefingSeen`はsettings.v1へ後方互換で補完し、旧`playIntroSeen=true`は新しい初回説明も既読として扱う
-- Replay代表画像と`WorldPatina`は既存world／frameから表示時に導出し、サムネイルやPatinaの保存フィールドを追加しない
-- 本格的なファイル保存、暗号化、バックアップ、復元保証はF3で検証する
+- 永続化対象の内容（savedAt以外）が同じなら再書込しない。save時点に可変worldからdeep snapshotを分離し、同一turnの同project変更は最新1件へcoalesceする
+- 非同期書込中の次のrevisionを消さない。失敗時は旧fileとpending内容を保持し、次の保存境界または1秒から最大30秒へbackoffするtimerで再試行する。成功後はretry timerを残さない。project別の上限超過・直列化エラーは他projectの成功で消さない。容量不足等はUIで表示する
+- visible activeのcheckpoint間隔は最大5秒を目標とする。hidden/idleの時間tick・RNG・装飾変化だけでは定期書込しない
+- hiddenでも実Token到着、残Tokenの燃焼、直接操作、project切替、重要状態遷移は保存する。未燃焼tokenQueue、fuelProgress、taskTokensも復元する
+- hidden移行、project切替、重要遷移、終了で明示flush。Tray終了はfrontendのflush成功後だけnative終了する。失敗は終了を中断し再試行可能にする
+- 5秒は稼働しているschedulerと健全な保存先を前提とするcheckpoint要求の上限であり、OS強制kill・電源断・長時間freeze・disk fullの無条件保証ではない。hidden/idle中の装飾・時間進行は最後のcheckpointまで戻り、offline recoveryを適用する
+- browserのbeforeunloadは非同期完了を保証できない。OS強制終了も終了handshakeを通らない
+- Replay代表画像とWorldPatinaは表示時導出し、保存しない。settingsのopeningBriefingSeen/旧playIntroSeen互換は変更しない
+
+### 公開gate
+
+macOS実機で24時間の物理保存サイズと旧WebKit領域の増加を測定し、上限内であること、Windows置換・終了・再起動・容量不足復旧を確認するまで常駐利用・配布しない。ソースとfake storageテストだけで合格としない。暗号化や完全復元保証は対象外。
 
 ## D-006 — 記録量には静かな上限を設ける
 
@@ -107,6 +115,14 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - Replay frame: 最大900件を目安とし、超えたら偶数frameを残して半分へ間引く
 - Event Discovery: 遭遇済みイベントの初回・最終・回数だけを保持
 - `token-burn / tree-harvest / coolant-drain`の通常反復イベントは履歴棚へ毎回保存しない
+
+### 物理保存上限
+
+- nativeは最大1024 project、通常ファイル最大3072件（3世代相当）。追加は拒否し既存projectを自動削除しない
+- native project payloadは1件4MiBまで。current・backup・temporaryを合算して64MiBまで（ファイルシステムのblock/metadata overheadは別途実機計測）
+- 上限到達は既存projectの自動削除や履歴の追加truncateではなく保存失敗として通知する。旧checkpointを保護し、exportや空き容量の確認へ進める
+- 件数上限だけでなく、物理書込量・保存領域サイズ・WebKit WAL増加も受入試験で監視する。browser previewのlocalStorageに物理上限の保証をしない
+- 異常WALは単独削除しない。アプリと関連WebKitプロセスを完全終了し、SQLite本体/WAL/SHMの一式を退避して整合性を保った復旧を行う。修正版は旧領域を自動削除しない
 
 古い出来事は自然に棚から消える。永続的な完全監査ログではなく、「最近こういうこともあった」と振り返るための記憶である。
 

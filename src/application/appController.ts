@@ -32,6 +32,8 @@ export interface ControllerView {
 
 export type ControllerSubscriber = (world: WorldState, snapshot: AgentSnapshot) => void;
 
+const SAVE_INTERVAL_MS = 5_000;
+
 export class AppController {
   private world: WorldState;
   private readonly demoSource = new DemoAgentSource();
@@ -48,7 +50,10 @@ export class AppController {
   private animationFrame = 0;
   private pollTimer = 0;
   private hiddenSimulationTimer = 0;
-  private persistenceTimer = 0;
+  private lastPersistenceAt = 0;
+  private tokenInputDirty = false;
+  private lastSavedTokenProduced = 0;
+  private lastSavedInteractionCount = 0;
   private sourceRevision = 0;
   private started = false;
   private stopped = false;
@@ -70,6 +75,7 @@ export class AppController {
   ) {
     this.activeSource = codexSource;
     this.world = persistence.loadProject(metaFromSnapshot(IDLE_SNAPSHOT));
+    this.recordPersistenceCheckpoint();
   }
 
   start(): void {
@@ -96,7 +102,7 @@ export class AppController {
     this.pollTimer = 0;
     this.hiddenSimulationTimer = 0;
     this.replay.stop(this.world);
-    this.persistence.save(this.world);
+    this.saveWorld(true);
     this.audio.dispose();
     this.renderer.dispose();
   }
@@ -158,15 +164,22 @@ export class AppController {
     this.animationFrame = requestAnimationFrame(this.tick);
   };
 
-  private advanceSimulationTo(now: number): void {
+  private advanceSimulationTo(now: number, persist = true): void {
     const elapsed = Math.max(0, (now - this.lastSimulationAt) / 1_000);
     this.lastSimulationAt = now;
     forEachLogicalStep(elapsed, (dt) => this.advanceLogicalWorld(dt));
+    if (!persist) return;
 
-    this.persistenceTimer += elapsed;
-    if (this.persistenceTimer >= 5) {
-      this.persistenceTimer %= 5;
-      this.persistence.save(this.world);
+    // 見た目だけの回復・キャラクター更新では、常駐中にディスクを書き続けない。
+    // 実Tokenの燃焼と直接操作はhidden/idleでも耐久化する。
+    if (readInteractionCount(this.world) !== this.lastSavedInteractionCount) {
+      this.saveWorld(true);
+      return;
+    }
+    const activeVisible = this.snapshot.active && document.visibilityState !== "hidden";
+    const consumedTokens = this.world.tokenProduced !== this.lastSavedTokenProduced;
+    if ((activeVisible || this.tokenInputDirty || consumedTokens) && now - this.lastPersistenceAt >= SAVE_INTERVAL_MS) {
+      this.saveWorld(!activeVisible);
     }
   }
 
@@ -205,8 +218,11 @@ export class AppController {
   private readonly handleVisibilityChange = (): void => {
     if (this.stopped || !this.started) return;
     const now = performance.now();
-    this.advanceSimulationTo(now);
-    if (document.visibilityState === "hidden") {
+    const hidden = document.visibilityState === "hidden";
+    // hidden境界は下で必ず保存するため、同じworldの周期保存を重ねない。
+    this.advanceSimulationTo(now, !hidden);
+    if (hidden) {
+      this.saveWorld(true);
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
       this.startHiddenSimulation();
@@ -254,13 +270,18 @@ export class AppController {
       const next = await source.poll();
       if (this.stopped || revision !== this.sourceRevision) return;
       const nextProjectKey = projectKeyOf(next);
-      if (nextProjectKey !== this.world.projectKey) this.switchProject(next);
+      const projectChanged = nextProjectKey !== this.world.projectKey;
+      if (projectChanged) this.switchProject(next);
+      const previous = this.snapshot;
       enqueueTokenFuel(this.world, next.tokenDelta);
+      // 700msごとの入力は集約し、後続入力で5秒の保存期限を延長しない。
+      if (Number.isFinite(next.tokenDelta) && next.tokenDelta > 0) this.tokenInputDirty = true;
       this.replay.onSnapshot(this.world, this.snapshot, next);
       this.attention.onSnapshot(this.world, this.snapshot, next);
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
       this.snapshot = next;
       this.world.model = next.model ?? this.world.model;
+      if (projectChanged || isImportantSnapshotTransition(previous, next)) this.saveWorld(true);
       this.view.setStatus(next);
       this.view.setConnectionLabel(
         this.sourceMode === "demo"
@@ -281,10 +302,12 @@ export class AppController {
         source: "monitor-error",
         updatedAtMs: Date.now(),
       };
+      const previous = this.snapshot;
       this.replay.onSnapshot(this.world, this.snapshot, next);
       this.attention.onSnapshot(this.world, this.snapshot, next);
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
       this.snapshot = next;
+      if (isImportantSnapshotTransition(previous, next)) this.saveWorld(true);
       this.view.setStatus(this.snapshot);
       this.view.setConnectionLabel(error instanceof Error ? error.message : "MONITOR ERROR");
     } finally {
@@ -298,13 +321,37 @@ export class AppController {
 
   private switchProject(next: AgentSnapshot): void {
     this.replay.stop(this.world);
-    this.persistence.save(this.world);
+    this.saveWorld(true);
     this.world = this.persistence.loadProject(metaFromSnapshot(next));
     enqueueWorldEvent(this.world, "project-arrival", 1, {
       line: `${projectLabelOf(next)}事業所へ作業員と環境債務台帳を移動しました。`,
     });
   }
+
+  private saveWorld(flush: boolean): void {
+    this.persistence.save(this.world);
+    this.recordPersistenceCheckpoint();
+    if (flush) {
+      // 保存失敗時もsimulationを止めず、永続化Adapterのdirty再試行に委ねる。
+      void this.persistence.flush?.().catch(() => {});
+    }
+  }
+
+  private recordPersistenceCheckpoint(): void {
+    this.lastPersistenceAt = performance.now();
+    this.tokenInputDirty = false;
+    this.lastSavedTokenProduced = this.world.tokenProduced;
+    this.lastSavedInteractionCount = readInteractionCount(this.world);
+  }
 }
+
+const readInteractionCount = (world: WorldState): number => Object.values(world.characters)
+  .reduce((total, character) => total + character.interactions, world.debt.manualDamage);
+
+const isImportantSnapshotTransition = (previous: AgentSnapshot, next: AgentSnapshot): boolean =>
+  previous.active !== next.active
+  || (previous.status !== next.status && (next.status === "completed" || next.status === "error" || next.status === "compacting"))
+  || (previous.tool === "approval_review") !== (next.tool === "approval_review");
 
 const metaFromSnapshot = (snapshot: AgentSnapshot): ProjectMeta => ({
   key: projectKeyOf(snapshot),
