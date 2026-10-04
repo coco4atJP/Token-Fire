@@ -46,6 +46,8 @@ export class AppController {
   private lastSimulationAt = 0;
   private lastPresentationAt = Number.NEGATIVE_INFINITY;
   private polling = false;
+  private pollSequence = 0;
+  private activePoll: Promise<void> | null = null;
   private pollPending = false;
   private animationFrame = 0;
   private pollTimer = 0;
@@ -57,6 +59,12 @@ export class AppController {
   private sourceRevision = 0;
   private started = false;
   private stopped = false;
+  private quitting = false;
+  private quitReady = false;
+  private quitSnapshotSaved = false;
+  private quitWasStarted = false;
+  private quitRevision = 0;
+  private quitPreparation: Promise<void> | null = null;
 
   constructor(
     private readonly codexSource: AgentSource,
@@ -79,7 +87,7 @@ export class AppController {
   }
 
   start(): void {
-    if (this.stopped || this.started) return;
+    if (this.stopped || this.started || this.quitting) return;
     this.started = true;
     this.lastSimulationAt = performance.now();
     this.view.setSourceMode(this.sourceMode);
@@ -91,8 +99,75 @@ export class AppController {
 
   stop(): void {
     if (this.stopped) return;
-    this.stopped = true;
-    this.sourceRevision += 1;
+    // beforeunloadは待機できない。終了準備済みのsnapshotを二重保存しない。
+    if (!this.quitting || !this.quitSnapshotSaved) {
+      this.pauseScheduler();
+      this.replay.stop(this.world);
+      this.saveWorld(true);
+    }
+    this.finalizeStop();
+  }
+
+  /** 保存確認中だけ実行を止め、失敗時は同じ世界・入力元で再開する。 */
+  prepareToQuit(): Promise<void> {
+    if (this.quitPreparation) return this.quitPreparation;
+    if (this.stopped) return Promise.resolve();
+    this.quitting = true;
+    this.quitSnapshotSaved = false;
+    this.quitWasStarted = this.started;
+    const revision = ++this.quitRevision;
+    // pollはRust側のToken差分を消費するため、実行中の結果を捨てずに保存へ含める。
+    this.pauseScheduler(false);
+    this.quitPreparation = Promise.resolve(this.activePoll)
+      .then(() => {
+        if (this.stopped) return;
+        if (revision !== this.quitRevision || !this.quitting) throw new Error("Quit preparation cancelled");
+        this.replay.stop(this.world);
+        this.saveWorld(false);
+        this.quitSnapshotSaved = true;
+        return this.persistence.flush?.();
+      })
+      .then(() => {
+        if (this.stopped) return;
+        if (revision !== this.quitRevision || !this.quitting) throw new Error("Quit preparation cancelled");
+        this.quitReady = true;
+      })
+      .catch((error: unknown) => {
+        if (revision === this.quitRevision && !this.stopped) this.cancelQuit();
+        throw error;
+      });
+    return this.quitPreparation;
+  }
+
+  /** 保存成功後もOS終了IPCが失敗し得るため、その成功確認まで資源を保持する。 */
+  completeQuit(): void {
+    if (!this.quitting || !this.quitReady || this.stopped) return;
+    this.finalizeStop();
+  }
+
+  cancelQuit(): void {
+    if (!this.quitting || this.stopped) return;
+    const resume = this.quitWasStarted;
+    this.quitRevision += 1;
+    this.quitting = false;
+    this.quitReady = false;
+    this.quitSnapshotSaved = false;
+    this.quitWasStarted = false;
+    this.quitPreparation = null;
+    if (resume) {
+      this.lastPresentationAt = Number.NEGATIVE_INFINITY;
+      this.start();
+    }
+  }
+
+  private pauseScheduler(invalidatePoll = true): void {
+    this.started = false;
+    if (invalidatePoll) {
+      this.sourceRevision += 1;
+      // 強制停止後の古いpollは、再開後のpollの所有権を奪わない。
+      this.pollSequence += 1;
+      this.polling = false;
+    }
     this.pollPending = false;
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     cancelAnimationFrame(this.animationFrame);
@@ -101,14 +176,19 @@ export class AppController {
     this.animationFrame = 0;
     this.pollTimer = 0;
     this.hiddenSimulationTimer = 0;
-    this.replay.stop(this.world);
-    this.saveWorld(true);
+  }
+
+  private finalizeStop(): void {
+    this.stopped = true;
+    this.quitting = false;
+    this.quitReady = false;
+    this.pauseScheduler();
     this.audio.dispose();
     this.renderer.dispose();
   }
 
   setMode(mode: SourceMode): void {
-    if (this.stopped) return;
+    if (this.stopped || this.quitting) return;
     this.sourceMode = mode;
     if (mode === "demo") {
       this.demoSource.restart();
@@ -147,13 +227,13 @@ export class AppController {
 
   /** `pausePresentationForCapture`後に同じworld.elapsedから一枚だけ再構成する。 */
   renderPresentationForCapture(): void {
-    if (this.stopped) return;
+    if (this.stopped || this.quitting) return;
     this.beforePresent();
     this.present(this.readPresentationContext());
   }
 
   private readonly tick = (now: number): void => {
-    if (this.stopped || document.visibilityState === "hidden") return;
+    if (this.stopped || !this.started || document.visibilityState === "hidden") return;
     this.advanceSimulationTo(now);
     this.beforePresent();
     const context = this.readPresentationContext();
@@ -247,7 +327,7 @@ export class AppController {
   private startHiddenSimulation(): void {
     if (this.hiddenSimulationTimer !== 0) return;
     this.hiddenSimulationTimer = window.setInterval(
-      () => this.advanceSimulationTo(performance.now()),
+      () => { if (this.started && !this.stopped) this.advanceSimulationTo(performance.now()); },
       MAX_LOGICAL_STEP_SECONDS * 1_000,
     );
   }
@@ -258,12 +338,16 @@ export class AppController {
       this.pollPending = true;
       return;
     }
-    void this.pollSource();
+    const poll = this.pollSource();
+    this.activePoll = poll;
+    const clearPoll = (): void => { if (this.activePoll === poll) this.activePoll = null; };
+    void poll.then(clearPoll, clearPoll);
   };
 
   private async pollSource(): Promise<void> {
-    if (this.stopped) return;
+    if (this.stopped || !this.started) return;
     this.polling = true;
+    const sequence = ++this.pollSequence;
     const revision = this.sourceRevision;
     const source = this.activeSource;
     try {
@@ -281,7 +365,7 @@ export class AppController {
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
       this.snapshot = next;
       this.world.model = next.model ?? this.world.model;
-      if (projectChanged || isImportantSnapshotTransition(previous, next)) this.saveWorld(true);
+      if (!this.quitting && (projectChanged || isImportantSnapshotTransition(previous, next))) this.saveWorld(true);
       this.view.setStatus(next);
       this.view.setConnectionLabel(
         this.sourceMode === "demo"
@@ -307,14 +391,16 @@ export class AppController {
       this.attention.onSnapshot(this.world, this.snapshot, next);
       this.eventDirector.onSnapshot(this.world, this.snapshot, next);
       this.snapshot = next;
-      if (isImportantSnapshotTransition(previous, next)) this.saveWorld(true);
+      if (!this.quitting && isImportantSnapshotTransition(previous, next)) this.saveWorld(true);
       this.view.setStatus(this.snapshot);
       this.view.setConnectionLabel(error instanceof Error ? error.message : "MONITOR ERROR");
     } finally {
-      this.polling = false;
-      if (this.pollPending && !this.stopped) {
-        this.pollPending = false;
-        queueMicrotask(this.requestPoll);
+      if (sequence === this.pollSequence) {
+        this.polling = false;
+        if (this.pollPending && !this.stopped) {
+          this.pollPending = false;
+          queueMicrotask(this.requestPoll);
+        }
       }
     }
   }

@@ -382,7 +382,260 @@ describe("AppController scheduler", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(harness.persistence.flush).toHaveBeenCalledTimes(2);
   });
+
+  it("終了flush失敗時は資源を破棄せず、同じ世界のpoll・描画・購読callbackを再開する", async () => {
+    const harness = createHarness();
+    const subscriber = vi.fn();
+    harness.controller.subscribe(subscriber);
+    harness.controller.start();
+    await advanceVisibleTime(50);
+    const world = harness.controller.getWorld();
+    const elapsed = world.elapsed;
+    const polls = harness.poll.mock.calls.length;
+    const renders = harness.renderer.render.mock.calls.length;
+    const notifications = subscriber.mock.calls.length;
+    const flush = deferred<void>();
+    harness.persistence.flush.mockReturnValueOnce(flush.promise);
+
+    const preparation = harness.controller.prepareToQuit();
+    const failure = expect(preparation).rejects.toThrow("disk full");
+    await advanceVisibleTime(1_400);
+    harness.controller.start();
+    harness.controller.renderPresentationForCapture();
+    harness.controller.completeQuit();
+    expect(harness.poll).toHaveBeenCalledTimes(polls);
+    expect(harness.renderer.render).toHaveBeenCalledTimes(renders);
+    expect(subscriber).toHaveBeenCalledTimes(notifications);
+    expect(world.elapsed).toBe(elapsed);
+    expect(harness.audio.dispose).not.toHaveBeenCalled();
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+
+    flush.reject(new Error("disk full"));
+    await failure;
+    await advanceVisibleTime(750);
+    expect(harness.controller.getWorld()).toBe(world);
+    expect(world.elapsed).toBeGreaterThan(elapsed);
+    expect(harness.poll.mock.calls.length).toBeGreaterThan(polls);
+    expect(harness.renderer.render.mock.calls.length).toBeGreaterThan(renders);
+    expect(subscriber.mock.calls.length).toBeGreaterThan(notifications);
+    expect(harness.audio.dispose).not.toHaveBeenCalled();
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+  });
+
+  it("重複終了要求を集約し、flushとOS終了確認の後だけ資源を一度破棄する", async () => {
+    const harness = createHarness();
+    harness.controller.start();
+    await advanceVisibleTime(50);
+    const flush = deferred<void>();
+    harness.persistence.flush.mockReturnValueOnce(flush.promise);
+    const polls = harness.poll.mock.calls.length;
+    const preparation = harness.controller.prepareToQuit();
+    expect(harness.controller.prepareToQuit()).toBe(preparation);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    expect(harness.persistence.flush).toHaveBeenCalledTimes(1);
+    expect(harness.replay.stop).toHaveBeenCalledTimes(1);
+    harness.controller.completeQuit();
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+
+    flush.resolve();
+    await preparation;
+    expect(harness.controller.prepareToQuit()).toBe(preparation);
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+    expect(harness.audio.dispose).not.toHaveBeenCalled();
+    harness.controller.completeQuit();
+    harness.controller.completeQuit();
+    harness.controller.stop();
+    harness.controller.start();
+    await advanceVisibleTime(1_400);
+    expect(harness.poll).toHaveBeenCalledTimes(polls);
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    expect(harness.persistence.flush).toHaveBeenCalledTimes(1);
+    expect(harness.audio.dispose).toHaveBeenCalledTimes(1);
+    expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("flush成功後のOS終了失敗はcancelで復帰し、次の終了要求を再試行できる", async () => {
+    const harness = createHarness();
+    harness.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const polls = harness.poll.mock.calls.length;
+    const first = harness.controller.prepareToQuit();
+    await first;
+    harness.controller.cancelQuit();
+    harness.controller.cancelQuit();
+    await advanceVisibleTime(700);
+    expect(harness.poll).toHaveBeenCalledTimes(polls + 2);
+    expect(harness.renderer.render).toHaveBeenCalled();
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+
+    const retry = harness.controller.prepareToQuit();
+    expect(retry).not.toBe(first);
+    await retry;
+    harness.controller.completeQuit();
+    expect(harness.persistence.save).toHaveBeenCalledTimes(2);
+    expect(harness.replay.stop).toHaveBeenCalledTimes(2);
+    expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("終了準備は実行中pollを待ち、消費済みToken差分を最終Queueへ含める", async () => {
+    const harness = createHarness();
+    const pendingPoll = deferred<AgentSnapshot>();
+    const flush = deferred<void>();
+    harness.poll.mockReturnValueOnce(pendingPoll.promise);
+    harness.persistence.flush.mockReturnValueOnce(flush.promise);
+    harness.controller.start();
+    const preparation = harness.controller.prepareToQuit();
+    expect(harness.controller.prepareToQuit()).toBe(preparation);
+    await advanceVisibleTime(1_400);
+    expect(harness.poll).toHaveBeenCalledTimes(1);
+    expect(harness.persistence.save).not.toHaveBeenCalled();
+    expect(harness.persistence.flush).not.toHaveBeenCalled();
+    expect(harness.replay.stop).not.toHaveBeenCalled();
+
+    pendingPoll.resolve({ ...IDLE_SNAPSHOT, active: true, status: "working", tokenDelta: 999 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    expect(harness.checkpoints[0].world.tokenQueue).toBe(999);
+    expect(harness.persistence.flush).toHaveBeenCalledTimes(1);
+    expect(harness.replay.stop).toHaveBeenCalledTimes(1);
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+    flush.resolve();
+    await preparation;
+    harness.controller.completeQuit();
+    expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("poll待機中に終了を取消してもTokenを捨てず、既存pollと並行する新規pollを作らない", async () => {
+    const harness = createHarness();
+    const pendingPoll = deferred<AgentSnapshot>();
+    harness.poll.mockReturnValueOnce(pendingPoll.promise);
+    harness.controller.start();
+    const preparation = harness.controller.prepareToQuit();
+    const cancelled = expect(preparation).rejects.toThrow("Quit preparation cancelled");
+    harness.controller.cancelQuit();
+    await advanceVisibleTime(700);
+    expect(harness.poll).toHaveBeenCalledTimes(1);
+    pendingPoll.resolve({ ...IDLE_SNAPSHOT, tokenDelta: 999 });
+    await cancelled;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.controller.getWorld().tokenQueue).toBe(999);
+    expect(harness.poll).toHaveBeenCalledTimes(2);
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+    await advanceVisibleTime(50);
+    expect(harness.renderer.render).toHaveBeenCalled();
+  });
+
+  it("終了失敗後は現在のvisibilityに合わせてhidden simulationと監視を再開する", async () => {
+    const harness = createHarness();
+    harness.controller.start();
+    await advanceVisibleTime(50);
+    const flush = deferred<void>();
+    harness.persistence.flush.mockReturnValueOnce(flush.promise);
+    const preparation = harness.controller.prepareToQuit();
+    const failure = expect(preparation).rejects.toThrow("disk full");
+    const elapsed = harness.controller.getWorld().elapsed;
+    const renders = harness.renderer.render.mock.calls.length;
+    setVisibility("hidden");
+    await vi.advanceTimersByTimeAsync(240);
+    expect(harness.controller.getWorld().elapsed).toBe(elapsed);
+    flush.reject(new Error("disk full"));
+    await failure;
+    await vi.advanceTimersByTimeAsync(240);
+    expect(harness.controller.getWorld().elapsed).toBeGreaterThanOrEqual(elapsed + 0.23);
+    expect(harness.renderer.render).toHaveBeenCalledTimes(renders);
+    setVisibility("visible");
+    await advanceVisibleTime(50);
+    expect(harness.renderer.render.mock.calls.length).toBeGreaterThan(renders);
+  });
+
+  it("終了失敗後もdemo入力を維持し、codexへ勝手に戻したりdemoを再始動しない", async () => {
+    const harness = createHarness();
+    harness.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    harness.controller.setMode("demo");
+    await advanceVisibleTime(5_000);
+    const world = harness.controller.getWorld();
+    expect(harness.controller.getSnapshot().status).toBe("working");
+    const polls = harness.poll.mock.calls.length;
+    harness.persistence.flush.mockRejectedValueOnce(new Error("disk full"));
+    await expect(harness.controller.prepareToQuit()).rejects.toThrow("disk full");
+    await advanceVisibleTime(700);
+
+    expect(harness.controller.getWorld()).toBe(world);
+    expect(harness.controller.getSnapshot().source).toBe("demo");
+    expect(harness.controller.getSnapshot().status).toBe("working");
+    expect(harness.poll).toHaveBeenCalledTimes(polls);
+    expect(harness.renderer.dispose).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("未startの終了準備はflush失敗後もschedulerを勝手に起動しない（success=%s）", async (success) => {
+    const harness = createHarness();
+    if (success) {
+      await harness.controller.prepareToQuit();
+      harness.controller.completeQuit();
+      expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+    } else {
+      harness.persistence.flush.mockRejectedValueOnce(new Error("disk full"));
+      await expect(harness.controller.prepareToQuit()).rejects.toThrow("disk full");
+      expect(harness.renderer.dispose).not.toHaveBeenCalled();
+    }
+    await advanceVisibleTime(1_400);
+    expect(harness.poll).not.toHaveBeenCalled();
+    expect(harness.renderer.render).not.toHaveBeenCalled();
+    expect(harness.controller.getWorld().elapsed).toBe(0);
+  });
+
+  it("準備中のbeforeunload stopは二重保存せず、後続flush失敗でも再開しない", async () => {
+    const harness = createHarness();
+    harness.controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const flush = deferred<void>();
+    harness.persistence.flush.mockReturnValueOnce(flush.promise);
+    const preparation = harness.controller.prepareToQuit();
+    const failure = expect(preparation).rejects.toThrow("disk full");
+    await vi.advanceTimersByTimeAsync(0);
+    harness.controller.stop();
+    flush.reject(new Error("disk full"));
+    await failure;
+    await advanceVisibleTime(1_400);
+
+    expect(harness.poll).toHaveBeenCalledTimes(1);
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    expect(harness.replay.stop).toHaveBeenCalledTimes(1);
+    expect(harness.audio.dispose).toHaveBeenCalledTimes(1);
+    expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("poll待機中のbeforeunload stopは現在の世界を保存し、遅いpoll完了で再開しない", async () => {
+    const harness = createHarness();
+    const pendingPoll = deferred<AgentSnapshot>();
+    harness.poll.mockReturnValueOnce(pendingPoll.promise);
+    harness.controller.start();
+    const preparation = harness.controller.prepareToQuit();
+    expect(harness.persistence.save).not.toHaveBeenCalled();
+    harness.controller.stop();
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    pendingPoll.resolve({ ...IDLE_SNAPSHOT, tokenDelta: 999 });
+    await preparation;
+    await advanceVisibleTime(1_400);
+
+    expect(harness.poll).toHaveBeenCalledTimes(1);
+    expect(harness.persistence.save).toHaveBeenCalledTimes(1);
+    expect(harness.controller.getWorld().tokenQueue).toBe(0);
+    expect(harness.renderer.dispose).toHaveBeenCalledTimes(1);
+  });
 });
+
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
 
 const createHarness = (initial: Partial<AgentSnapshot> = {}) => {
   let snapshot = { ...IDLE_SNAPSHOT, ...initial };

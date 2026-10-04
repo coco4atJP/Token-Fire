@@ -95,7 +95,7 @@ Git Repositoryのremote URLや安定したWorkspace IDを安全に取得でき�
 - 非同期書込中の次のrevisionを消さない。失敗時は旧fileとpending内容を保持し、次の保存境界または1秒から最大30秒へbackoffするtimerで再試行する。成功後はretry timerを残さない。project別の上限超過・直列化エラーは他projectの成功で消さない。容量不足等はUIで表示する
 - visible activeのcheckpoint間隔は最大5秒を目標とする。hidden/idleの時間tick・RNG・装飾変化だけでは定期書込しない
 - hiddenでも実Token到着、残Tokenの燃焼、直接操作、project切替、重要状態遷移は保存する。未燃焼tokenQueue、fuelProgress、taskTokensも復元する
-- hidden移行、project切替、重要遷移、終了で明示flush。Tray終了はfrontendのflush成功後だけnative終了する。失敗は終了を中断し再試行可能にする
+- hidden移行、project切替、重要遷移、終了で明示flush。Tray終了はfrontendのflush成功後だけnative終了する。終了準備は可逆pauseとし、flush/終了IPC失敗時は描画・監視を再開する。資源破棄は成功後のみ
 - 5秒は稼働しているschedulerと健全な保存先を前提とするcheckpoint要求の上限であり、OS強制kill・電源断・長時間freeze・disk fullの無条件保証ではない。hidden/idle中の装飾・時間進行は最後のcheckpointまで戻り、offline recoveryを適用する
 - browserのbeforeunloadは非同期完了を保証できない。OS強制終了も終了handshakeを通らない
 - Replay代表画像とWorldPatinaは表示時導出し、保存しない。settingsのopeningBriefingSeen/旧playIntroSeen互換は変更しない
@@ -112,7 +112,7 @@ macOS実機で24時間の物理保存サイズと旧WebKit領域の増加を測�
 
 - 履歴: 最新160件
 - Replay: 最新24件
-- Replay frame: 最大900件を目安とし、超えたら偶数frameを残して半分へ間引く
+- Replay frame: 最大900件を目安とし、超えたら偶数frameを残して半分へ間引く。保存時はprojectの4MiB byte budgetも適用し、Replayの件数・metadata・先頭/末尾frameを保持して中間frameだけを均等に間引く。live Replayと旧移行元JSONは変更しない
 - Event Discovery: 遭遇済みイベントの初回・最終・回数だけを保持
 - `token-burn / tree-harvest / coolant-drain`の通常反復イベントは履歴棚へ毎回保存しない
 
@@ -120,7 +120,7 @@ macOS実機で24時間の物理保存サイズと旧WebKit領域の増加を測�
 
 - nativeは最大1024 project、通常ファイル最大3072件（3世代相当）。追加は拒否し既存projectを自動削除しない
 - native project payloadは1件4MiBまで。current・backup・temporaryを合算して64MiBまで（ファイルシステムのblock/metadata overheadは別途実機計測）
-- 上限到達は既存projectの自動削除や履歴の追加truncateではなく保存失敗として通知する。旧checkpointを保護し、exportや空き容量の確認へ進める
+- 上限到達は既存projectの自動削除や世界会計・履歴の追加truncateではなく保存失敗として通知する。旧checkpointを保護し、exportや空き容量の確認へ進める
 - 件数上限だけでなく、物理書込量・保存領域サイズ・WebKit WAL増加も受入試験で監視する。browser previewのlocalStorageに物理上限の保証をしない
 - 異常WALは単独削除しない。アプリと関連WebKitプロセスを完全終了し、SQLite本体/WAL/SHMの一式を退避して整合性を保った復旧を行う。修正版は旧領域を自動削除しない
 

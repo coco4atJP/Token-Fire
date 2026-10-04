@@ -225,13 +225,26 @@ export class BrowserWorldPersistence implements WorldPersistence {
 
   private queue(project: PersistedWorld): void {
     if (this.readOnly) return;
-    const content = fingerprint(project);
     const key = project.projectKey;
-    const raw = JSON.stringify({ version: VERSION, project });
+    let raw = JSON.stringify({ version: VERSION, project });
+    // 許容済み24 Replay×900 frameでも保存不能にしない。世界会計・Replay件数と両端は保持し、
+    // 保存snapshotの中間frameだけを均等に間引く。live Replayと旧移行元は変更しない。
+    while (new TextEncoder().encode(raw).byteLength > MAX_PROJECT_BYTES
+      && project.replays.some((replay) => replay.frames.length > 2)) {
+      project = {
+        ...project,
+        replays: project.replays.map((replay) => ({
+          ...replay,
+          frames: replay.frames.filter((_, index, frames) => index % 2 === 0 || index === frames.length - 1),
+        })),
+      };
+      raw = JSON.stringify({ version: VERSION, project });
+    }
     if (new TextEncoder().encode(raw).byteLength > MAX_PROJECT_BYTES) {
       this.projectErrors.set(key, new Error("Project save exceeds 4 MiB; previous save retained"));
       return;
     }
+    const content = fingerprint(project);
     this.projectErrors.delete(key);
     if (this.pending.get(key)?.fingerprint === content) return;
     if (!this.pending.has(key) && this.committed.get(key) === content) return;

@@ -128,18 +128,27 @@ const platform = new PlatformBridge();
 let developmentFixture: DevelopmentFixture | null = null;
 let osE2E = false;
 // 読込失敗時にも通常終了できるよう、初期化前から終了要求を受ける。
-let stopForQuit = (): void => {};
-let flushForQuit = (): Promise<void> => Promise.resolve();
+let prepareForQuit = (): Promise<void> => Promise.resolve();
+let completeQuit = (): void => {};
+let cancelQuit = (): void => {};
+let quitRequestPending = false;
 if (isDesktop) {
   await listen("token-fire:prepare-quit", async () => {
-    stopForQuit();
+    if (quitRequestPending) return;
+    quitRequestPending = true;
+    app.inert = true;
     try {
-      await flushForQuit();
+      await prepareForQuit();
       await invoke("finish_world_quit");
+      completeQuit();
     } catch (error) {
-      // 終了を強行せず、旧saveと未確定のメモリを保持して再試行可能にする。
+      cancelQuit();
+      app.inert = false;
+      // 終了を強行せず、描画・監視を再開し、旧saveとメモリを保持する。
       await getCurrentWindow().show().catch(() => {});
       window.alert(`保存できないため終了を中止しました。空き容量を確認してTrayから終了を再試行してください。\n${String(error)}`);
+    } finally {
+      quitRequestPending = false;
     }
   });
 }
@@ -259,8 +268,9 @@ controller.subscribe((world, snapshot) => {
   shell.classList.toggle("is-quiet", readEffectiveQuiet());
   shell.classList.toggle("reduce-flash", settings.get().attention.reduceFlash);
 });
-stopForQuit = () => controller.stop();
-flushForQuit = () => persistence.flush?.() ?? Promise.resolve();
+prepareForQuit = () => controller.prepareToQuit();
+completeQuit = () => controller.completeQuit();
+cancelQuit = () => controller.cancelQuit();
 controller.start();
 if (developmentFixture && new URLSearchParams(window.location.search).get("tfCapture") === "1") {
   controller.pausePresentationForCapture();

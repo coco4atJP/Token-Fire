@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../domain/experienceData";
 import { createWorld } from "../domain/world";
 import { SettingsStore } from "./settingsStore";
-import { BrowserWorldPersistence, PROJECT_PREFIX, type ProjectStorage } from "./worldPersistence";
+import { BrowserWorldPersistence, PROJECT_PREFIX, MAX_PROJECT_BYTES, type ProjectStorage } from "./worldPersistence";
 
 describe("v3保存互換", () => {
   beforeEach(() => localStorage.clear());
@@ -281,6 +281,43 @@ describe("project単位のdirty checkpoint", () => {
     persistence.save(createWorld({ projectKey: "small" }));
     await expect(persistence.flush()).rejects.toThrow("4 MiB");
     big.projectLabel = "fixed"; persistence.save(big); await persistence.flush();
+  });
+
+  it("24件×900frameをbyte budgetへ収め、件数・両端・会計とlive配列を保持する", async () => {
+    const world = createWorld({ projectKey: "large-replays" });
+    world.tokenProduced = 123; world.tokenQueue = 321;
+    world.replays = Array.from({ length: 24 }, (_, replayIndex) => ({
+      id: `replay-${replayIndex}`, projectKey: world.projectKey, projectLabel: "Large",
+      sessionId: null, title: "Long recording", model: null, startedAt: 1, endedAt: 901,
+      totalTokens: 123, wasted: false,
+      frames: Array.from({ length: 900 }, (_, index) => ({
+        t: index, active: true, status: "working", effort: "medium", agents: 1,
+        taskTokens: 123, totalTokens: 123, energyLevel: 1, growthLevel: 1,
+        heat: 0.123456789, pollution: 0.123456789, water: 0.987654321, rain: 0.123456789,
+        chill: 0, trees: "g".repeat(48), event: null,
+      })),
+    }));
+    expect(new TextEncoder().encode(JSON.stringify(world.replays)).byteLength).toBeGreaterThan(MAX_PROJECT_BYTES);
+    const write = vi.fn();
+    const persistence = new BrowserWorldPersistence({ read: () => [], write });
+    persistence.save(world); await persistence.flush();
+    const raw = write.mock.calls[0][1]; const project = JSON.parse(raw).project;
+    expect(new TextEncoder().encode(raw).byteLength).toBeLessThanOrEqual(MAX_PROJECT_BYTES);
+    expect(project.replays).toHaveLength(24);
+    expect(project.replays.every((replay: { frames: Array<{ t: number }> }) => replay.frames.length < 900
+      && replay.frames[0].t === 0 && replay.frames.at(-1)?.t === 899)).toBe(true);
+    expect(project.tokenProduced).toBe(123); expect(project.tokenQueue).toBe(321);
+    expect(world.replays.every((replay) => replay.frames.length === 900)).toBe(true);
+    persistence.save(world); await persistence.flush(); expect(write).toHaveBeenCalledTimes(1);
+    // 既存の大きなv3も元データを残したまま同じbudgetへ移行する。
+    const legacy = JSON.stringify({ version: 3, projects: { [world.projectKey]: { ...world, savedAt: Date.now() } } });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation((key) => key === "token-fire.worlds.v3" ? legacy : null);
+    const legacyWrite = vi.spyOn(Storage.prototype, "setItem");
+    const migratedWrite = vi.fn();
+    const migrated = new BrowserWorldPersistence({ read: () => [], write: migratedWrite }); await migrated.flush();
+    expect(new TextEncoder().encode(migratedWrite.mock.calls[0][1]).byteLength).toBeLessThanOrEqual(MAX_PROJECT_BYTES);
+    expect(localStorage.getItem("token-fire.worlds.v3")).toBe(legacy);
+    expect(legacyWrite).not.toHaveBeenCalled();
   });
 
 });
